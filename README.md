@@ -19,6 +19,8 @@ inventories, disassembles, and traces the game, producing:
 
 - machine-readable reports under `build/reports/` (gitignored),
 - decompiled output under `build/decomp/` (gitignored),
+- a curated named view of the decompiled code under `build/named/`
+  (gitignored), produced from `config/ghidra/rename-map.json`,
 - **written analysis notes** under `docs/mechanics/` and `docs/dataformats/`
   (committed — these are our conclusions, written by us).
 
@@ -53,7 +55,7 @@ These are enforced structurally (`.gitignore`) and persisted in `AGENTS.md`:
 AGENTS.md            standing rules for every session
 Makefile             pipeline orchestration
 iso.sha256           provenance manifest (hashes of the expected image)
-scripts/             00..10 pipeline stages + check_env.py
+scripts/             00..11 pipeline stages + check_env.py
 config/              rules.yaml, Ghidra scripts, DOSBox config template
 docs/                INSTALL.md, pipeline.md, mechanics/, dataformats/
 iso/                 (gitignored) your copy of the original image

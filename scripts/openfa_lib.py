@@ -57,6 +57,10 @@ def decomp_dir(cfg: dict) -> Path:
     return _path(cfg, "decomp_dir")
 
 
+def named_dir(cfg: dict) -> Path:
+    return _path(cfg, "named_dir")
+
+
 def traces_dir(cfg: dict) -> Path:
     return _path(cfg, "traces_dir")
 

@@ -63,15 +63,16 @@ Nothing derived from the game's copyrighted files may ever be committed.
 - `make check` — verify installed toolchain against `config/rules.yaml`
 - `make all` — run the full pipeline (download → verify → extract → inventory
   → binary-info → extract-flat → flat-analyze → disassemble → strings →
-  dat-survey → trace)
+  dat-survey → trace → names)
 - `make clean` — wipe `build/` (derived artifacts only; never touches `iso/`)
 - Individual stages: `make download verify extract inventory binary-info
-  extract-flat flat-analyze disassemble strings dat-survey trace`
+  extract-flat flat-analyze disassemble strings dat-survey trace names`
 
 ## Pipeline overview
 
 See `docs/pipeline.md` for detail. Outputs (reports) land in `build/reports/`;
-decompiled output in `build/decomp/`; traces in `build/traces/`.
+decompiled output in `build/decomp/`; named view in `build/named/`; traces in
+`build/traces/`.
 
 Stage numbering in `scripts/`:
 - `00` download the ISO from archive.org (optional)
@@ -85,6 +86,10 @@ Stage numbering in `scripts/`:
 - `08` strings sweep
 - `09` data-file format survey (magic/entropy/header probes)
 - `10` DOSBox(-X) runtime tracing (INT 21h/file-open log, disc check)
+- `11` apply curated names from `config/ghidra/rename-map.json` to a copy of
+  the decompiled C in `build/named/`
 
 Analysis conclusions are written by us into `docs/dataformats/` and
-`docs/mechanics/`; raw decompiled output stays in `build/`.
+`docs/mechanics/`; raw decompiled output stays in `build/`. Never edit the
+Ghidra exports in `build/decomp/` in place — treat them as read-only and
+encode any renaming in `config/ghidra/rename-map.json` via stage `11`.

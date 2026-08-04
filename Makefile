@@ -9,7 +9,7 @@ PY      := python3
 SCRIPTS := scripts
 
 .PHONY: all check download verify extract inventory binary-info disassemble \
-        strings dat-survey trace extract-flat flat-analyze clean help
+        strings dat-survey trace extract-flat flat-analyze names clean help
 
 help:
 	@echo "OpenFA pipeline targets:"
@@ -26,7 +26,9 @@ help:
 	@echo "  make strings        strings sweep over extracted files"
 	@echo "  make dat-survey     data-file format survey (magic/entropy/probes)"
 	@echo "  make trace          DOSBox(-X) runtime trace (INT 21h/file-open log)"
-	@echo "  make all            full pipeline (download..trace)"
+	@echo "  make names          mirror decompiled.c to build/named/ with curated"
+	@echo "                      names from config/ghidra/rename-map.json"
+	@echo "  make all            full pipeline (download..names)"
 	@echo "  make clean          wipe build/ (derived artifacts only; iso/ untouched)"
 
 check:
@@ -70,8 +72,11 @@ dat-survey: check-dat-survey inventory
 trace: check-trace extract
 	./$(SCRIPTS)/10_dosbox_trace.sh
 
-all: download verify extract inventory binary-info extract-flat flat-analyze disassemble strings dat-survey trace
-	@echo "Pipeline finished. Reports in build/reports/, decompiled output in build/decomp/."
+names:
+	$(PY) $(SCRIPTS)/11_apply_names.py
+
+all: download verify extract inventory binary-info extract-flat flat-analyze disassemble strings dat-survey trace names
+	@echo "Pipeline finished. Reports in build/reports/, decompiled output in build/decomp/, named view in build/named/."
 
 clean:
 	rm -rf build

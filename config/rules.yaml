@@ -15,6 +15,7 @@ paths:
   build_dir: build
   extracted_dir: build/iso
   decomp_dir: build/decomp
+  named_dir: build/named
   traces_dir: build/traces
   reports_dir: build/reports
   strings_dir: build/reports/strings
@@ -45,9 +46,9 @@ iso:
 #   required: false => the stage using it degrades gracefully when absent
 #   external: true  => not on PATH; located via GHIDRA_HOME / manual config
 # Stage names: download verify extract inventory binary-info extract-flat
-#              flat-analyze disassemble strings dat-survey trace
+#              flat-analyze disassemble strings dat-survey trace names
 tools:
-  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, extract-flat, flat-analyze, disassemble, strings, dat-survey, trace] }
+  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, extract-flat, flat-analyze, disassemble, strings, dat-survey, trace, names] }
   curl:      { min: "7.0",  version_flag: "--version",  required: true,  stages: [download] }
   7z:        { min: "16.0", version_flag: "i",          required: true,  stages: [extract] }
   bsdtar:    { min: "3.0",  version_flag: "--version",  required: true,  stages: [extract] }

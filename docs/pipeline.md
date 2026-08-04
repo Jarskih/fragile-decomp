@@ -28,6 +28,8 @@ iso/FragileAllegiance.iso        (gitignored, provided by you or `make download`
         ▼
 10_dosbox_trace.sh               build/traces/ (INT 21h/file-open log, disc check)
         ▼
+11_apply_names.py                build/named/ (annotated copy of the decompiled C)
+        ▼
 docs/mechanics/, docs/dataformats/      OUR written conclusions (committed)
 ```
 
@@ -108,6 +110,14 @@ file-open activity plus the disc-check behavior into `build/traces/` on any
 DOSBox-X build. A runtime load-base trace (from a custom `--enable-debug`
 curses build) that would validate the relocation records is deferred; the
 static decompilation route is primary (see `docs/dataformats/dos4gw-bound.md`).
+
+### 11 — apply names
+Ghidra's export in `build/decomp/` is treated as read-only. This stage copies
+each `decompiled.c` and `functions.tsv` to `build/named/`, applying curated
+descriptive names from `config/ghidra/rename-map.json` with word-boundary
+substitutions. Never edit `build/decomp/` by hand — renames live in the map
+so the stage stays reproducible. `make names` is fast to iterate: editing the
+map and re-running it re-applies the names without re-running Ghidra.
 
 ## Reading the reports
 
