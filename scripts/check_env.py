@@ -42,11 +42,17 @@ def main() -> int:
 
         if external:
             if name == "ghidra":
-                found = lib.find_ghidra() is not None
+                gpath = lib.find_ghidra()
+                found = gpath is not None
+                where = gpath or ""
+            elif name == "dosbox-x":
+                argv = lib.find_dosbox()
+                found = argv is not None
+                where = " ".join(argv) if argv else ""
             else:
                 found = lib.which(name) is not None
+                where = lib.which(name) or ""
             ver = ""
-            where = lib.find_ghidra() if name == "ghidra" else (lib.which(name) or "")
         else:
             found = lib.which(name) is not None
             ver = lib.tool_version([name] + ([] if not spec.get("version_flag")

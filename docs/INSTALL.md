@@ -39,12 +39,15 @@ Ghidra is not in most distro repos. Install it manually:
 1. Requires a Java runtime (JDK 17+). `sudo apt install openjdk-17-jdk`
 2. Download Ghidra from <https://ghidra-sre.org/> (or GitHub releases).
 3. Unpack it somewhere permanent, e.g. `/opt/ghidra`.
-4. Point the pipeline at it in one of two ways:
+4. Make sure the pipeline can find it — any of:
    - export `GHIDRA_HOME=/opt/ghidra` in your shell profile, or
-   - set it per-invocation: `GHIDRA_HOME=/opt/ghidra make disassemble`
+   - set it per-invocation: `GHIDRA_HOME=/opt/ghidra make disassemble`, or
+   - put `ghidraRun` on `PATH` (the pipeline then infers the install dir
+     from the launcher; a symlink like `/usr/bin/ghidra -> /opt/ghidra/ghidraRun`
+     works too).
 
 The wrapper is `$GHIDRA_HOME/support/analyzeHeadless`; `scripts/check_env.py`
-looks for it there and on `PATH`.
+looks for it via `GHIDRA_HOME`, on `PATH`, and via the `ghidra` launcher.
 
 ## DOSBox-X
 
@@ -56,6 +59,17 @@ sudo apt install dosbox-x            # Debian/Ubuntu ships it; check version
 
 or grab a build from <https://dosbox-x.com/>. Plain `dosbox` works for running
 the game but the debugger build gives us INT 21h file-open tracing.
+
+**Flatpak:** `flatpak install flathub com.dosbox_x.DOSBox-X`. The pipeline
+auto-detects the exported launcher (`com.dosbox_x.DOSBox-X`), so no extra
+setup is needed. Note the sandbox: `make trace` mounts `build/iso` and
+`build/dosbox/cdrive`, so grant filesystem access if mounting fails:
+
+```sh
+flatpak override --user --filesystem=host com.dosbox_x.DOSBox-X
+```
+
+A custom binary or argv can always be forced with `DOSBOX_BIN=dosbox-x`.
 
 ## Verifying the install
 

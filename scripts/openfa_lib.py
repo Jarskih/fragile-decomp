@@ -179,7 +179,14 @@ def tool_version(cmd: list[str]) -> str:
 
 
 def find_ghidra() -> str | None:
-    """Locate analyzeHeadless via PATH or GHIDRA_HOME."""
+    """Locate analyzeHeadless via PATH, GHIDRA_HOME, or `ghidra` on PATH.
+
+    Order:
+      1. analyzeHeadless on PATH
+      2. $GHIDRA_HOME/support/analyzeHeadless
+      3. `ghidra` on PATH: /usr/bin/ghidra -> /opt/ghidra/ghidraRun,
+         infer the install dir from the launcher's resolved parent
+    """
     found = shutil.which("analyzeHeadless")
     if found:
         return found
@@ -188,6 +195,41 @@ def find_ghidra() -> str | None:
         cand = Path(home) / "support" / "analyzeHeadless"
         if cand.is_file():
             return str(cand)
+    launcher = shutil.which("ghidra")
+    if launcher:
+        resolved = Path(launcher).resolve()
+        if resolved.name == "ghidraRun":
+            cand = resolved.parent / "support" / "analyzeHeadless"
+            if cand.is_file():
+                return str(cand)
+    return None
+
+
+# DOSBox-X flatpak app id (exported launcher com.dosbox_x.DOSBox-X).
+DOSBOX_FLATPAK_ID = "com.dosbox_x.DOSBox-X"
+
+
+def find_dosbox() -> list[str] | None:
+    """Return the argv for a usable DOSBox(-X), or None if not found.
+
+    Candidates, first match wins:
+      1. DOSBOX_BIN env override (a single command, or a full argv)
+      2. dosbox-x / dosbox on PATH
+      3. DOSBox-X flatpak export com.dosbox_x.DOSBox-X (PATH or the
+         standard flatpak export directories)
+    """
+    override = os.environ.get("DOSBOX_BIN")
+    if override:
+        return override.split()
+    for name in ("dosbox-x", "dosbox", DOSBOX_FLATPAK_ID):
+        found = shutil.which(name)
+        if found:
+            return [found]
+    for root in (Path("/var/lib/flatpak/exports/bin"),
+                 Path.home() / ".local/share/flatpak/exports/bin"):
+        cand = root / DOSBOX_FLATPAK_ID
+        if cand.is_file():
+            return [str(cand)]
     return None
 
 

@@ -9,7 +9,8 @@
 # Env overrides:
 #   GAME_EXE     relative path to the game executable inside the CD tree
 #                (default: auto-discover FRAGILE.EXE)
-#   DOSBOX_BIN   dosbox(-x) binary (default: dosbox-x, fallback dosbox)
+#   DOSBOX_BIN   dosbox(-x) binary or full argv (default: auto-detect
+#                dosbox-x / dosbox / DOSBox-X flatpak)
 #
 # Traces are derived runtime behavior and live only under build/ (gitignored).
 set -euo pipefail
@@ -25,15 +26,18 @@ if [[ ! -d "$CDROOT" ]]; then
   exit 2
 fi
 
-if [[ -z "${DOSBOX_BIN:-}" ]]; then
-  if command -v dosbox-x >/dev/null 2>&1; then
-    DOSBOX_BIN="dosbox-x"
-  elif command -v dosbox >/dev/null 2>&1; then
-    DOSBOX_BIN="dosbox"
-  else
-    echo "error: neither dosbox-x nor dosbox found (docs/INSTALL.md)." >&2
-    exit 2
-  fi
+# --- locate DOSBox(-X) ---------------------------------------------------
+read -r -a DOSBOX_CMD <<< "$(python3 - "$ROOT/scripts" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import openfa_lib as lib
+argv = lib.find_dosbox()
+print(" ".join(argv) if argv else "")
+PY
+)"
+if [[ ${#DOSBOX_CMD[@]} -eq 0 ]]; then
+  echo "error: DOSBox(-X) not found (see docs/INSTALL.md), or set DOSBOX_BIN=." >&2
+  exit 2
 fi
 
 # --- locate the game executable -----------------------------------------
@@ -65,7 +69,7 @@ fi
 EXE_DIR="$(dirname "$EXE_REL")"
 [[ "$EXE_DIR" == "." ]] && EXE_DIR="\\"
 EXE_NAME="$(basename "$EXE_REL")"
-echo "==> running $DOSBOX_BIN; executable: d:\\$EXE_REL"
+echo "==> running ${DOSBOX_CMD[*]}; executable: d:\\$EXE_REL"
 
 # --- substitute placeholders into the config template ---------------------
 mkdir -p "$SCRATCH" "$TRACES"
@@ -85,7 +89,7 @@ PY
 # --- run -------------------------------------------------------------------
 if [[ "${1:-}" == "--trace" ]]; then
   echo "==> starting with debugger (DOSBox-X). Console trace in build/traces/."
-  exec "$DOSBOX_BIN" -startdebugger -conf "$CFG_OUT" 2>&1 | tee "$TRACES/trace.log"
+  exec "${DOSBOX_CMD[@]}" -startdebugger -conf "$CFG_OUT" 2>&1 | tee "$TRACES/trace.log"
 else
-  "$DOSBOX_BIN" -conf "$CFG_OUT" 2>&1 | tee "$TRACES/run.log"
+  "${DOSBOX_CMD[@]}" -conf "$CFG_OUT" 2>&1 | tee "$TRACES/run.log"
 fi

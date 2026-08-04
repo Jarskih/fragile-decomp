@@ -56,12 +56,24 @@ tools:
   file:      { min: "5.0",  version_flag: "--version",  required: true,  stages: [inventory, dat-survey] }
   strings:   { min: "2.0",  version_flag: "--version",  required: true,  stages: [strings] }
   ndisasm:   { min: "2.0",  version_flag: "-v",         required: false, stages: [disassemble] }
-  ghidra:    { min: "0",    version_flag: "",           required: true,  external: true, note: "GHIDRA_HOME or PATH", stages: [disassemble] }
-  dosbox-x:  { min: "0",    version_flag: "--version",  required: false, external: true, note: "needed for `make trace`", stages: [trace] }
+  ghidra:    { min: "0",    version_flag: "",           required: true,  external: true, note: "GHIDRA_HOME, analyzeHeadless on PATH, or `ghidra` on PATH", stages: [disassemble] }
+  dosbox-x:  { min: "0",    version_flag: "--version",  required: false, external: true, note: "dosbox-x / dosbox / DOSBox-X flatpak (com.dosbox_x.DOSBox-X)", stages: [trace] }
 
 # Known gameplay entry points (filled in as analysis proceeds).
 game:
   main_executable: FRAGILE.EXE
+  # The game's own DOS executables (stage 05 analyzes these by default;
+  # set ANALYZE_ALL=1 to analyze every non-PE DOS executable instead).
+  executables:
+    - FRAGILE.EXE
+    - INTRPLAY.EXE
+    - LOGO.EXE
+    - EREGCARD.EXE
+    - INSTALL.EXE
+    - _INST.EXE
+    - LOADPATS.EXE
+    - INSTALL/INSTALL.EXE
+    - INSTALL/LOADPATS.EXE
   notes: >
     Fragile Allegiance, 1996, Gremlin Interactive / Cajji Software.
     Spiritual successor to K240 (Amiga). Disc-check DRM on the CD release.
