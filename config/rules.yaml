@@ -1,0 +1,67 @@
+# ======================================================================
+# OpenFA pipeline configuration
+#
+# This file is committed. It describes the expected toolchain and the
+# reference ISO source, nothing else. No game content lives here.
+# ======================================================================
+
+project:
+  name: OpenFA
+
+paths:
+  root: "."                 # relative to repo root
+  iso_dir: iso
+  iso_file: iso/FragileAllegiance.iso
+  build_dir: build
+  extracted_dir: build/iso
+  decomp_dir: build/decomp
+  traces_dir: build/traces
+  reports_dir: build/reports
+  strings_dir: build/reports/strings
+  hash_manifest: iso.sha256
+
+# Reference ISO source(s) on archive.org. All downloads are optional; you
+# may place your own image in iso/ instead and skip `make download`.
+iso:
+  default_identifier: Fragile_Allegiance_Interplay_Eng
+  sources:
+    - identifier: Fragile_Allegiance_Interplay_Eng
+      filename: FragileAllegiance.iso
+      url: "https://archive.org/download/Fragile_Allegiance_Interplay_Eng/FragileAllegiance.iso"
+      size: 625258496
+      note: Single CD image (Interplay, English). Includes Red Book audio. Preferred.
+    - identifier: fragile-allegiance-us-1997-dos
+      filename: CD_DIC.rar
+      url: "https://archive.org/download/fragile-allegiance-us-1997-dos/CD_DIC.rar"
+      note: US 2CD release in .rar container (game CD + saves CD). Not an ISO; extraction differs.
+    - identifier: msdos_Fragile_Allegiance_1997
+      filename: Fragile_Allegiance_1997.zip
+      url: "https://archive.org/download/msdos_Fragile_Allegiance_1997/Fragile_Allegiance_1997.zip"
+      note: Pre-installed DOSBox package (no CD audio). NOT a disc image.
+
+# Expected toolchain. `min` is checked by scripts/check_env.py.
+#   stages:   which pipeline stages need this tool (used by `make check-<stage>`)
+#   required: false => the stage using it degrades gracefully when absent
+#   external: true  => not on PATH; located via GHIDRA_HOME / manual config
+# Stage names: download verify extract inventory binary-info disassemble
+#              strings dat-survey trace
+tools:
+  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, disassemble, strings, dat-survey, trace] }
+  curl:      { min: "7.0",  version_flag: "--version",  required: true,  stages: [download] }
+  7z:        { min: "16.0", version_flag: "i",          required: true,  stages: [extract] }
+  bsdtar:    { min: "3.0",  version_flag: "--version",  required: true,  stages: [extract] }
+  xorriso:   { min: "1.4",  version_flag: "--version",  required: false, stages: [verify] }
+  isoinfo:   { min: "2.0",  version_flag: "-version",   required: false, stages: [verify] }
+  cd-info:   { min: "2.0",  version_flag: "--version",  required: false, stages: [verify] }
+  file:      { min: "5.0",  version_flag: "--version",  required: true,  stages: [inventory, dat-survey] }
+  strings:   { min: "2.0",  version_flag: "--version",  required: true,  stages: [strings] }
+  ndisasm:   { min: "2.0",  version_flag: "-v",         required: false, stages: [disassemble] }
+  ghidra:    { min: "0",    version_flag: "",           required: true,  external: true, note: "GHIDRA_HOME or PATH", stages: [disassemble] }
+  dosbox-x:  { min: "0",    version_flag: "--version",  required: false, external: true, note: "needed for `make trace`", stages: [trace] }
+
+# Known gameplay entry points (filled in as analysis proceeds).
+game:
+  main_executable: FRAGILE.EXE
+  notes: >
+    Fragile Allegiance, 1996, Gremlin Interactive / Cajji Software.
+    Spiritual successor to K240 (Amiga). Disc-check DRM on the CD release.
