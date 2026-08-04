@@ -62,10 +62,11 @@ Nothing derived from the game's copyrighted files may ever be committed.
 
 - `make check` — verify installed toolchain against `config/rules.yaml`
 - `make all` — run the full pipeline (download → verify → extract → inventory
-  → binary-info → disassemble → strings → dat-survey → trace)
+  → binary-info → extract-flat → flat-analyze → disassemble → strings →
+  dat-survey → trace)
 - `make clean` — wipe `build/` (derived artifacts only; never touches `iso/`)
 - Individual stages: `make download verify extract inventory binary-info
-  disassemble strings dat-survey trace`
+  extract-flat flat-analyze disassemble strings dat-survey trace`
 
 ## Pipeline overview
 
@@ -78,10 +79,12 @@ Stage numbering in `scripts/`:
 - `02` extract the ISO9660 data session
 - `03` inventory files (name/size/hash/magic)
 - `04` classify executables (16-bit vs 32-bit DOS extender)
-- `05` Ghidra headless import/analyze/export
-- `06` strings sweep
-- `07` data-file format survey (magic/entropy/header probes)
-- `08` DOSBox(-X) runtime tracing (file opens, disc check)
+- `05` extract the DOS/4G-bound flat image from FRAGILE.EXE
+- `06` analyse the flat image (entry candidates, code/data/string regions)
+- `07` Ghidra headless import/analyze/export
+- `08` strings sweep
+- `09` data-file format survey (magic/entropy/header probes)
+- `10` DOSBox(-X) runtime tracing (INT 21h/file-open log, disc check)
 
 Analysis conclusions are written by us into `docs/dataformats/` and
 `docs/mechanics/`; raw decompiled output stays in `build/`.

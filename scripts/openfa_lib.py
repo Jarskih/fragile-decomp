@@ -69,6 +69,10 @@ def strings_dir(cfg: dict) -> Path:
     return _path(cfg, "strings_dir")
 
 
+def flat_dir(cfg: dict) -> Path:
+    return _path(cfg, "flat_dir")
+
+
 def hash_manifest(cfg: dict) -> Path:
     return ROOT / cfg.get("paths", {}).get("hash_manifest", "iso.sha256")
 

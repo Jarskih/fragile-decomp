@@ -53,7 +53,7 @@ These are enforced structurally (`.gitignore`) and persisted in `AGENTS.md`:
 AGENTS.md            standing rules for every session
 Makefile             pipeline orchestration
 iso.sha256           provenance manifest (hashes of the expected image)
-scripts/             00..08 pipeline stages + check_env.py
+scripts/             00..10 pipeline stages + check_env.py
 config/              rules.yaml, Ghidra scripts, DOSBox config template
 docs/                INSTALL.md, pipeline.md, mechanics/, dataformats/
 iso/                 (gitignored) your copy of the original image

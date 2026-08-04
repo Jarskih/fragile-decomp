@@ -18,6 +18,7 @@ paths:
   traces_dir: build/traces
   reports_dir: build/reports
   strings_dir: build/reports/strings
+  flat_dir: build/flat
   hash_manifest: iso.sha256
 
 # Reference ISO source(s) on archive.org. All downloads are optional; you
@@ -43,10 +44,10 @@ iso:
 #   stages:   which pipeline stages need this tool (used by `make check-<stage>`)
 #   required: false => the stage using it degrades gracefully when absent
 #   external: true  => not on PATH; located via GHIDRA_HOME / manual config
-# Stage names: download verify extract inventory binary-info disassemble
-#              strings dat-survey trace
+# Stage names: download verify extract inventory binary-info extract-flat
+#              flat-analyze disassemble strings dat-survey trace
 tools:
-  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, disassemble, strings, dat-survey, trace] }
+  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, extract-flat, flat-analyze, disassemble, strings, dat-survey, trace] }
   curl:      { min: "7.0",  version_flag: "--version",  required: true,  stages: [download] }
   7z:        { min: "16.0", version_flag: "i",          required: true,  stages: [extract] }
   bsdtar:    { min: "3.0",  version_flag: "--version",  required: true,  stages: [extract] }

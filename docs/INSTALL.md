@@ -51,14 +51,17 @@ looks for it via `GHIDRA_HOME`, on `PATH`, and via the `ghidra` launcher.
 
 ## DOSBox-X
 
-DOSBox-X (with the internal debugger, useful for `make trace`):
+DOSBox-X for `make trace` (INT 21h / file-open logging works on any build):
 
 ```sh
 sudo apt install dosbox-x            # Debian/Ubuntu ships it; check version
 ```
 
-or grab a build from <https://dosbox-x.com/>. Plain `dosbox` works for running
-the game but the debugger build gives us INT 21h file-open tracing.
+or grab a build from <https://dosbox-x.com/>. Plain `dosbox` also runs the
+game; the pipeline auto-detects both. A custom `--enable-debug` (curses
+debugger) build is NOT currently needed: the static decompilation route is
+primary, and a runtime load-base trace is deferred (see
+`docs/dataformats/dos4gw-bound.md`).
 
 **Flatpak:** `flatpak install flathub com.dosbox_x.DOSBox-X`. The pipeline
 auto-detects the exported launcher (`com.dosbox_x.DOSBox-X`), so no extra

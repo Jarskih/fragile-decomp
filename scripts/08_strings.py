@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage 06: strings sweep over the extracted files.
+"""Stage 08: strings sweep over the extracted files.
 
 Runs binutils `strings` (ASCII + UTF-16LE, with decimal offsets) per file into
 build/reports/strings/. A small index summarizes counts per file.

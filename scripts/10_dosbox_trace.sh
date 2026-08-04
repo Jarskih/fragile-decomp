@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Stage 08: run the game under DOSBox(-X) and capture a trace.
+# Stage 10: run the game under DOSBox(-X) and capture a trace.
 #
 # Generates a DOSBox config from config/dosbox/dosbox-x.conf.template that
 # mounts build/iso as the CD and a scratch dir as C:, then runs the game.
-# With --trace (needs the DOSBox-X debugger build) it starts the debugger and
-# logs console output; file-open (INT 21h) activity appears in build/traces/.
+#
+# Runtime memory tracing (load-base dump) would need a custom DOSBox-X
+# --enable-debug build; that plan is deferred. With --trace this stage passes
+# -log-int21 -log-fileio, which any DOSBox-X build honors (the flag handlers
+# live in the always-compiled debug lib) and records INT 21h / file-open
+# activity in build/traces/. The static decompilation route (stages 05-07)
+# is primary; this stage only records file-open + runtime logs.
 #
 # Env overrides:
 #   GAME_EXE     relative path to the game executable inside the CD tree
@@ -73,23 +78,29 @@ echo "==> running ${DOSBOX_CMD[*]}; executable: d:\\$EXE_REL"
 
 # --- substitute placeholders into the config template ---------------------
 mkdir -p "$SCRATCH" "$TRACES"
+LOGFILE="$TRACES/dosbox-x.log"
 python3 - "$ROOT/config/dosbox/dosbox-x.conf.template" "$CFG_OUT" \
-    "$SCRATCH" "$CDROOT" "$EXE_DIR" "$EXE_NAME" <<'PY'
+    "$SCRATCH" "$CDROOT" "$EXE_DIR" "$EXE_NAME" "$LOGFILE" <<'PY'
 import sys
-tmpl, out, scratch, cdroot, exedir, exe = sys.argv[1:]
+tmpl, out, scratch, cdroot, exedir, exe, logfile = sys.argv[1:]
 text = open(tmpl, encoding="utf-8").read()
 text = text.replace("__SCRATCH__", scratch.replace("\\", "\\\\"))
 text = text.replace("__ISO_DIR__", cdroot.replace("\\", "\\\\"))
 text = text.replace("__EXE_DIR__", exedir.replace("\\", "\\\\"))
 text = text.replace("__EXE__", exe)
+text = text.replace("__LOGFILE__", logfile.replace("\\", "\\\\"))
 open(out, "w", encoding="utf-8").write(text)
 print("config written:", out)
+print("dosbox-x log file:", logfile)
 PY
 
 # --- run -------------------------------------------------------------------
+# -log-int21/-log-fileio enable INT 21h + file-open logging on any DOSBox-X
+# build (the flag handlers live in the always-compiled debug lib). A custom
+# --enable-debug (curses debugger) build is deferred; see docs/INSTALL.md.
 if [[ "${1:-}" == "--trace" ]]; then
-  echo "==> starting with debugger (DOSBox-X). Console trace in build/traces/."
-  exec "${DOSBOX_CMD[@]}" -startdebugger -conf "$CFG_OUT" 2>&1 | tee "$TRACES/trace.log"
+  echo "==> tracing INT 21h/file-open to $TRACES/trace.log"
+  exec "${DOSBOX_CMD[@]}" -log-int21 -log-fileio -conf "$CFG_OUT" 2>&1 | tee "$TRACES/trace.log"
 else
   "${DOSBOX_CMD[@]}" -conf "$CFG_OUT" 2>&1 | tee "$TRACES/run.log"
 fi

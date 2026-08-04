@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage 07: data-file format survey.
+"""Stage 09: data-file format survey.
 
 For candidate data blobs (large, non-executable, non-text) records:
   - first bytes (hex) and printable glimpse

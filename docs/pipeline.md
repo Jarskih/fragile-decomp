@@ -17,12 +17,16 @@ iso/FragileAllegiance.iso        (gitignored, provided by you or `make download`
         ▼
 04_binary_info.py                build/reports/binaries.*  (16-bit vs 32-bit)
         ▼
-05_ghidra_headless.sh            build/decomp/ (Ghidra projects + exported C/asm)
+05_extract_flat.py               build/flat/FRAGILE.EXE.flat (DOS/4G slice)
         ▼
-06_strings.py                    build/reports/strings/    (per-file string dumps)
-07_dat_survey.py                 build/reports/datsurvey.* (magic/entropy/probes)
+06_flat_analyze.py               build/reports/flat_analysis.* (entry/regions)
         ▼
-08_dosbox_trace.sh               build/traces/ (INT 21h file opens, disc check)
+07_ghidra_headless.sh            build/decomp/ (Ghidra projects + exported C/asm)
+        ▼
+08_strings.py                    build/reports/strings/    (per-file string dumps)
+09_dat_survey.py                 build/reports/datsurvey.* (magic/entropy/probes)
+        ▼
+10_dosbox_trace.sh               build/traces/ (INT 21h/file-open log, disc check)
         ▼
 docs/mechanics/, docs/dataformats/      OUR written conclusions (committed)
 ```
@@ -60,28 +64,50 @@ paras, entry point, overlay flag) and sniffs for DOS extenders (DOS/4GW,
 DOS/32A, Watcom, DJGPP/CWSDPMI, PMODE). Classifies each as **16-bit real
 mode** or **32-bit protected mode** — this decides how we configure Ghidra.
 
-### 05 — Ghidra headless
+### 05 — extract flat (DOS/4G bound image)
+FRAGILE.EXE is DOS/4G-bound: an MZ stub plus a relocation page/offset table and
+record stream, then a flat 32-bit image. Stage 05 locates the structural
+anchors (`unbound` signature, page table at 0x3B8BE, offset table at 0x3BC70,
+record stream at 0x3C020), parses the record stream as far as the group-92
+encoding change, and slices the image (file 0x8A760..EOF) into
+`build/flat/FRAGILE.EXE.flat`. See `docs/dataformats/dos4gw-bound.md`.
+
+### 06 — flat analysis
+Maps the flat image's regions from printable-ASCII density (code
+0x0..0x8D000, binary data 0x8D000..0x92000, resource-file table 0x92000..EOF),
+finds the entry candidates (0x04 int3-trap NOP slide, 0x14 push6 prologue),
+and counts pointer dwords into the string region. Output:
+`build/reports/flat_analysis.*`.
+
+### 07 — Ghidra headless
 Runs `analyzeHeadless` once per executable: import, auto-analysis, then the
 Ghidra scripts in `config/ghidra/` export decompiled C, function lists, and
-symbol tables into `build/decomp/`. Set `GHIDRA_HOME` if Ghidra is not on
-`PATH`. **Decompiled output is never committed.**
+symbol tables into `build/decomp/`. After the DOS programs, the flat image
+from stage 05 is imported as a raw 32-bit x86 binary at **base 0**
+(`-loader BinaryLoader -loader-baseAddr 0x0`); `config/ghidra/set_entry.java`
+(pre-script) creates `main` at the entry (0x14) and labels the code/data
+boundary before auto-analysis. Set `GHIDRA_HOME` if Ghidra is not on `PATH`.
+**Decompiled output is never committed.**
 
-### 06 — strings
+### 08 — strings
 Runs `strings` (ASCII + UTF-16LE) over the extracted files into
 `build/reports/strings/`. String dumps reveal data-file names, error messages,
 and table names — breadcrumbs for both data formats and later function naming.
 
-### 07 — data-format survey
+### 09 — data-format survey
 For candidate data blobs (large, non-executable, non-text), records first
 bytes, per-block entropy (compression/encryption detection), and known-magic
 hits. Output: `build/reports/datsurvey.*`. Follow-up format work is a human +
 machine loop; conclusions go into `docs/dataformats/`.
 
-### 08 — runtime trace
+### 10 — runtime trace
 Generates a DOSBox-X config (template in `config/dosbox/`) that mounts
 `build/iso` as the CD and the extracted/game dir as `C:`, then runs the game.
-With the debugger build, captures file-open (`INT 21h`) activity and the
-disc-check behavior into `build/traces/`.
+With `--trace` it passes `-log-int21 -log-fileio`, capturing INT 21h and
+file-open activity plus the disc-check behavior into `build/traces/` on any
+DOSBox-X build. A runtime load-base trace (from a custom `--enable-debug`
+curses build) that would validate the relocation records is deferred; the
+static decompilation route is primary (see `docs/dataformats/dos4gw-bound.md`).
 
 ## Reading the reports
 

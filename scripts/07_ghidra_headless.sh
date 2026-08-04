@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 05: Ghidra headless import/analyze/export.
+# Stage 07: Ghidra headless import/analyze/export.
 #
 # Runs analyzeHeadless once per executable found by stage 04, then the
 # config/ghidra/export_all.java post-script writes decompiled C and a symbol
@@ -89,4 +89,33 @@ while IFS= read -r rel; do
   count=$((count+1))
 done < "$GHIDRA_OUT/exe_list.txt"
 
-echo "done: analyzed $count executable(s); output in $GHIDRA_OUT/"
+# --- flat DOS/4G image (stage 05) --------------------------------------
+# Import the sliced flat 32-bit image as a raw x86 binary at base 0. Addresses
+# are image-relative so relocations are not applied. set_entry.java (preScript)
+# sets the entry before auto-analysis so Ghidra disassembles from it.
+FLAT="$ROOT/build/flat/FRAGILE.EXE.flat"
+if [[ -f "$FLAT" && -f "$ROOT/build/reports/flat_extract.json" ]]; then
+  ENTRY="$(python3 -c "
+import json,sys
+d=json.load(open('$ROOT/build/reports/flat_extract.json'))
+print(hex(d.get('entry_hint',0x14)))")"
+  CODE_END="$(python3 -c "
+import json,sys
+d=json.load(open('$ROOT/build/reports/flat_analysis.json'))
+print(hex(d.get('code_data',{}).get('code_end',0)))")"
+  echo "==> analyze flat image $FLAT  (project: openfa_FRAGILE_flat)"
+  "$GHIDRA_BIN" "$GHIDRA_PROJ" "openfa_FRAGILE_flat" \
+      -import "$FLAT" \
+      -overwrite \
+      -processor x86:LE:32:default -loader BinaryLoader -loader-baseAddr 0x0 \
+      -analysisTimeoutPerFile 600 \
+      -scriptPath "$GHIDRA_SCRIPTS" \
+      -preScript set_entry.java "$ENTRY" "$CODE_END" \
+      -postScript export_all.java "$GHIDRA_OUT/FRAGILE.EXE.flat" \
+      || echo "warning: analyzeHeadless failed for flat image" >&2
+  count=$((count+1))
+else
+  echo "note: flat image not present; run \`make extract-flat flat-analyze\` to import it" >&2
+fi
+
+echo "done: analyzed $count program(s); output in $GHIDRA_OUT/"
