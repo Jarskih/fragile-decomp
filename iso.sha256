@@ -1,0 +1,12 @@
+# OpenFA ISO provenance manifest (committed for reproducibility)
+# Contains hashes and file names only — never any game content.
+#
+# Run `python3 scripts/00_download_iso.py --record-hash` after the first
+# successful download (or `python3 scripts/01_verify_iso.py --record-hash`
+# if you placed your own image) to pin the expected SHA-256 below.
+#
+# Reference source (archive.org):
+#   identifier: Fragile_Allegiance_Interplay_Eng
+#   filename:   FragileAllegiance.iso
+#   size:       625258496
+46278f5030e45d39cd80d469920538c26f746f6ba4f7e2ad03f4351bea5e5935  iso/FragileAllegiance.iso

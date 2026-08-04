@@ -1,0 +1,48 @@
+# ======================================================================
+# OpenFA .gitignore
+#
+# RULES (see AGENTS.md):
+#   1. Never commit any original game file.
+#   2. Never commit any decompiled/disassembled output.
+#   3. Everything derived from the game lives under build/ and iso/.
+#
+# This file structurally enforces rules 1 and 2.
+# ======================================================================
+
+# --- Rule 1: original game media / extracted game content -------------
+/iso/
+/build/
+
+# Common disc-image containers (in case a stray copy exists anywhere)
+*.iso
+*.bin
+*.cue
+*.nrg
+*.img
+*.mdf
+*.mds
+*.rar
+
+# --- Rule 2: decompilation / disassembly outputs ----------------------
+/build/
+*.ghidra/
+ghidra.rep/
+*.gpr
+*.gzf
+
+# Decompiler outputs that might be generated outside build/
+decompiled/
+reconstructed/
+reimpl/
+
+# --- Python ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- OS / editor -------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*~

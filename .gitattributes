@@ -1,0 +1,6 @@
+# Normalize line endings; keep shell scripts LF-only
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+Makefile text eol=lf
+*.md text eol=lf
