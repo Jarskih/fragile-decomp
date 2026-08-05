@@ -11,16 +11,16 @@ Source: disassembly (`build/flat/FRAGILE.EXE.flat` + `build/named/.../decompiled
 
 A *galaxy* is one node of the game's master object list (sentinel
 `g_obj_list_sentinel` @ 0xc3f4). The current galaxy is pointed to by the
-global `g_galaxy_ptr` @ 0xc3c4. Galaxies are created by **`FUN_00011a64`
+global `g_galaxy_ptr` @ 0xc3c4. Galaxies are created by **`galaxy_create`
 @ 0x11a64** and later filled in by a chain of deterministic generators driven
 from the galaxy's 32-bit seed — see `docs/mechanics/rng.md` for the RNG
 plumbing and the full `g_rng_state` write-site census.
 
-## The creation routine `FUN_00011a64` @ 0x11a64
+## The creation routine `galaxy_create` @ 0x11a64
 
 Verified asm flow:
 
-1. **Allocate**: `FUN_000212b4` pulls a node from the object list (sentinel
+1. **Allocate**: `obj_list_pop` pulls a node from the object list (sentinel
    0xc3f4, head `[0xc3e0]`); `FUN_00021274` initialises the node's sub-struct
    at +0x1ec and the planet/object area at +0x50.
 2. If `DAT_00016d58 != 0` the node is flagged as "special": `[+0xa6] = 0xffff`.
@@ -39,7 +39,7 @@ Verified asm flow:
    +0xc0/+0xc4/+0xc8/+0xcc are made self-referential (empty lists).
 8. `iRam0000ca20++` — bumps the global galaxy counter (the same counter `[0xca20]`
    the main loop's auto-spawn gate compares against).
-9. `FUN_00012994()`, `FUN_000127f4()` — post-creation hooks.
+9. `FUN_00012994()`, `galaxy_gen_start_values()` — post-creation hooks.
 
 ### Galaxy struct fields established so far
 
@@ -48,7 +48,7 @@ Verified asm flow:
 | +0x50  | 1 | galaxy type, 4..8 (roll + 4) |
 | +0x51  | 1 | flag byte (cleared for the home galaxy) |
 | +0x54, +0x58 | 4×2 | position/scale pair (written by `FUN_00011ba4`) |
-| +0x6c | 2×10 | starting-planet value set; written by the 0x11274 block (10 words) and by `FUN_000127f4` / `FUN_00012894` |
+| +0x6c | 2×10 | starting-planet value set; written by the 0x11274 block (10 words) and by `galaxy_gen_start_values` / `galaxy_setup_start_values` |
 | +0x15e | 2×10 | second starting-planet value set; written by the 0x11274 block only, at +0x15e+2·(i+1) for i=0..9 (lands at +0x160..+0x176 plus one word at +0x1de) |
 | +0x98  | 4 | **the galaxy seed** — everything else derives from it |
 | +0x9c  | 2 | planet count (odd, 25..31) |
@@ -70,15 +70,15 @@ Verified asm flow:
   self-contained routine; Ghidra never recovered it as a function. Verified
   flow:
   - `rng_seed(0x3039)` (== **12345**, the canonical LCG seed);
-  - `FUN_00011a64` → galaxy created (deterministic, see above);
-  - `FUN_00011c24(0xb4)` — position/rover placement;
+  - `galaxy_create` → galaxy created (deterministic, see above);
+  - `galaxy_place(0xb4)` — position/rover placement;
   - `FUN_00023054(1)` — name/index assignment;
   - `[+0x51] = 0`;
   - copy loop i = 0..9 (ten iterations, `cmp eax,0x9; jle`): `[+0x6c+2i]` ←
     word `[i*2+0xa384]`, and `[+0x15e+2*(i+1)]` ← word `[i*2+0xa3c0]` (the
     second write uses `edx` already bumped past the +0x6c slot, so the +0x15e
     set lands at +0x160..+0x176 for i=0..8 and one word at +0x1de for i=9);
-  - `FUN_00031af4` — rank the ten values;
+  - `galaxy_rank_start_values` — rank the ten values;
   - `g_galaxy_ptr = galaxy` (`[0xc3c4]`).
   The fixed seed makes the home galaxy's layout reproducible every new game.
   **Caveat:** the two word tables at 0xa384 / 0xa3c0 that this loop reads do
@@ -86,17 +86,17 @@ Verified asm flow:
   code (Ghidra's `FUN_0000a3b4` @ 0xa3b4 starts inside the second table), and
   no relocation record targets them. See "Open question" below.
 - **Race galaxies** — `FUN_0000ff25` @ 0xff25 creates the per-race galaxies:
-  each `FUN_00011a64` call is followed by `FUN_00011c24(<size code>)` (0xe4,
+  each `galaxy_create` call is followed by `galaxy_place(<size code>)` (0xe4,
   0x130, 0x12f, 0x12e, 0x16e …) and `FUN_00023054(<name index>)` (0x9/0xa/0xb
   for the tagged races), with bits 0x2/0x4/0x8 OR-ed into the byte `DAT_00016d69`.
   **No direct callers** — reached only by indirect dispatch, so the new-game
   entry point is assumed here (confirm at runtime).
 - **Main loop (state 8, in-game)** — `main` @ 0x14:
   - `FUN_0000f544` is called every tick while `g_mode_flag == 0` and creates
-    7 more galaxies (via `FUN_00011a64`);
+    7 more galaxies (via `galaxy_create`);
   - an **auto-spawn gate** at 0x3d3..0x422: if `[0x16d60]==0`, `[0xcd98]&7==0`,
     and `table[0xa398][ [0x16d65] + 3*[0x16d64] ] > [0xca20]`, it calls
-    `FUN_00011a64` then `FUN_00011c24(0x3e8)` — new galaxies keep appearing as
+    `galaxy_create` then `galaxy_place(0x3e8)` — new galaxies keep appearing as
     the game progresses (counter [0xca20] and the per-galaxy count live in the
     two byte counters [0x16d64]/[0x16d65] indexing the 3-wide table).
 - Other creation callers in `FUN_00013844` (0x13941..0x13ad5) follow the same
@@ -149,8 +149,8 @@ image contains as **executable code**, not data:
 |-----------|---------|------------------------------|
 | 0xa384 (10 words) | 0x11274 block → `+0x6c` | code (tail of the routine before `FUN_0000a3b4`) |
 | 0xa3c0 (10 words) | 0x11274 block → `+0x15e` | **inside `FUN_0000a3b4` @ 0xa3b4** (verified function) |
-| 0xa3d6, stride 0xe | `FUN_000127f4` → `+0x6c` | code |
-| 0xa3dc / 0xa3de, stride 0xe | `FUN_00012894` → `+0x6c` | code |
+| 0xa3d6, stride 0xe | `galaxy_gen_start_values` → `+0x6c` | code |
+| 0xa3dc / 0xa3de, stride 0xe | `galaxy_setup_start_values` → `+0x6c` | code |
 | 0xa398 (3-wide) | main-loop auto-spawn gate | code |
 | 0xa460 | `FUN_00011ba4` | code |
 
@@ -169,7 +169,7 @@ static data**. Working hypotheses, unresolved without a runtime trace:
    0x8D000..0x92000, and the whole-image +load-base story cannot move the
    tables out of the code region.)
 2. **The home block / these slots are never executed in the retail new-game
-   path** and the real starting values come from `FUN_00012894`'s other branch
+   path** and the real starting values come from `galaxy_setup_start_values`'s other branch
    (copy from an existing same-type galaxy). This would also make the 0x11274
    block effectively dead code.
 3. The code bytes genuinely serve double duty (least likely).
@@ -181,7 +181,7 @@ table 0xa3xx" claim as **unverified**.
 
 - `docs/mechanics/rng.md` — RNG internals, the seed formula, the exhaustive
   `g_rng_state` write-site census, the open cold-start-ordering question.
-- `build/named/FRAGILE.EXE.flat/decompiled.c` — `FUN_00011a64` @ line 9626
+- `build/named/FRAGILE.EXE.flat/decompiled.c` — `galaxy_create` @ line 9626
   (seed write @ 9652), the 0x11274 block (standalone routine; not in
   `functions.tsv`), `FUN_0000a3b4`, `FUN_0000ff25` @ 8786,
   `galaxy_regenerate` @ 25483.

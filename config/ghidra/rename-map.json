@@ -1,5 +1,5 @@
 {
-  "note": "Curated descriptive names for the decompiled flat DOS/4G image (stage 07). Addresses are image-relative (flat image imported at base 0). These are OUR analysis conclusions: each entry is added as its meaning is established from reading decompiled.c, and the docs/ notes carry the evidence. g_mode_flag gates init in main and toggles behavior across many subsystems; exact semantics TBD. The RNG names (rng_*) and galaxy-gen names (galaxy_*) are documented in docs/mechanics/rng.md.",
+  "note": "Curated descriptive names for the decompiled flat DOS/4G image (stage 07). Addresses are image-relative (flat image imported at base 0). These are OUR analysis conclusions: each entry is added as its meaning is established from reading decompiled.c, and the docs/ notes carry the evidence. g_mode_flag gates init in main and toggles behavior across many subsystems; exact semantics TBD. The RNG names (rng_*) and galaxy-gen names (galaxy_*) are documented in docs/mechanics/rng.md and docs/mechanics/galaxy-creation.md. galaxy_create makes a new galaxy node (rolls type/planet-count/seed); galaxy_place finds a free arena grid slot and sets the node position; galaxy_gen_start_values rolls the 10 per-planet starting values into +0x6c; galaxy_setup_start_values copies them from a same-type galaxy, a static table, or an RNG perturbation; galaxy_rank_start_values scores the ten values against the per-slot divisor table and stores the best index at +0x53; obj_list_pop removes and returns the head node of an intrusive list.",
   "globals": {
     "0x16d6c": "g_mode_flag",
     "0x36b64": "g_game_state",
@@ -15,7 +15,13 @@
     "0x5bb0e": "rng_seed",
     "0x5baf2": "rng_mix",
     "0x30874": "galaxy_gen_surface",
-    "0x320d4": "galaxy_regenerate"
+    "0x320d4": "galaxy_regenerate",
+    "0x11a64": "galaxy_create",
+    "0x11c24": "galaxy_place",
+    "0x127f4": "galaxy_gen_start_values",
+    "0x12894": "galaxy_setup_start_values",
+    "0x31af4": "galaxy_rank_start_values",
+    "0x212b4": "obj_list_pop"
   },
   "literals": {
     "0xc3f4": "g_obj_list_sentinel"
