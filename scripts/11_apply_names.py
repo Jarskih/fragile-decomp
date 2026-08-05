@@ -12,6 +12,8 @@ The map keys are image-relative addresses for the flat image:
   globals   0x16d6c -> g_mode_flag      (renames DAT_00016d6c)
   functions 0x5bada -> rng_next         (renames FUN_0005bada)
   literals  0xc3f4  -> g_obj_list_sentinel  (renames the raw literal 0xc3f4)
+Global keys also rename RAM-pointer symbols: iRam0000c3c4 and uRam0000c3c4
+are matched for globals such as 0xc3c4 -> g_galaxy_ptr.
 Hex keys may be written with or without the 0x prefix, any case. Names must be
 valid C identifiers (the script refuses to apply anything else).
 
@@ -59,6 +61,9 @@ def load_map(path: Path) -> tuple[list[tuple[str, str]], int]:
                     tables.append((t, name))
 
     add_global("globals", "DAT_")
+    # RAM-pointer globals get iRam/uRam symbols rather than DAT_.
+    add_global("globals", "iRam")
+    add_global("globals", "uRam")
     add_global("functions", "FUN_")
 
     for raw, name in (data.get("literals") or {}).items():

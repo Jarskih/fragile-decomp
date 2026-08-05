@@ -5,7 +5,8 @@
     "0x36b64": "g_game_state",
     "0x4cd7c": "g_rng_state",
     "0x4cd80": "g_rng_state2",
-    "0x1e460": "g_last_galaxy_seed"
+    "0x1e460": "g_last_galaxy_seed",
+    "0xc3c4": "g_galaxy_ptr"
   },
   "functions": {
     "0x5bada": "rng_next",

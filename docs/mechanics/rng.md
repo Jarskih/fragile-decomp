@@ -130,7 +130,8 @@ generators in 0x30800..0x32000 follow the same pattern — save `g_rng_state`,
   `restore g_rng_state.`
   So the whole galaxy depends only on the 32-bit seed at galaxy struct +0x98
   (named `g_last_galaxy_seed` @ 0x1e460 caches it for the changed-check).
-  The source of that seed (galaxy-name hash?) is still open.
+  The seed is **not** a name hash — see "Where the galaxy seed comes from"
+  below.
 - `FUN_000315d4` @ 0x315d4: `rng_seed(param)`, then two `rng_next`-driven
   generation loops (`FUN_00031234`, `FUN_00031384`).
 - `FUN_00031fe4` @ 0x31fe4: `rng_seed()`, spawns six objects in a row
@@ -178,13 +179,69 @@ Clustering by address region (call sites per 64 KiB block):
 | 0x20000..0x40000 | 17 | 68 | galaxy generation, `FUN_0002f114` encounter placement (state2) |
 | 0x40000..0x60000 | 17 | 46 | combat/damage rolls (0x49000..0x54000), init `FUN_0005bd24` |
 
+## Where the galaxy seed comes from (closed)
+
+The galaxy seed is a pure live-RNG output, taken at the moment the galaxy
+struct is created. There is no name hash, and the player never enters it.
+
+- The seed field is written in exactly one place, `FUN_00011a64` @ 0x11a64
+  (galaxy creation, decompiled line 9652):
+  `*(int *)(galaxy + 0x98) = (rng_next(0x10000) << 16) | rng_next(0x10000);`
+  Verified in asm: two `call rng_next` with `eax = 0x10000` (0x11af2,
+  0x11afe), first result `shl edx,0x10` (0x11b0d) then `or` with the second.
+  So the seed is simply the next two 16-bit-scaled rolls of `g_rng_state`.
+- `galaxy_regenerate` reseeds from that field (`rng_seed([esi+0x98])`) before
+  re-running the generator chain, then restores the pre-call state, so every
+  galaxy is fully determined by its 32-bit seed.
+- The player's **home galaxy is deliberately deterministic**: the setup block
+  at 0x11274 inside `FUN_000104c4` runs `rng_seed(0x3039)` (== **12345**, the
+  canonical LCG seed) immediately before calling `FUN_00011a64`, then fills
+  the galaxy's 9 starting-planet slots from the static tables at
+  0xa384/0xa3c0 (word pairs into +0x6c/+0x15e) and stores the galaxy pointer
+  in `g_galaxy_ptr` (0xc3c4). The race/extra galaxies created by
+  `FUN_0000ff25` @ 0xff25 then roll from the same deterministic stream. Net
+  effect: **the galaxy layout is a fixed universe on every new game**; only
+  the clock-seeded `g_rng_state2` encounter stream varies per run.
+  (Assumption to confirm at runtime: that the 0x11274 block is on the
+  new-game path; it is reached only by indirect call through `FUN_0000ff25`.)
+  Note the main loop can also create galaxies directly: in state 8,
+  `main` calls `FUN_0000f544` (7 creations) and an auto-spawn gate
+  (`table[0xa398][[0x16d65]+3*[0x16d64]] > [0xca20]` → `FUN_00011a64` then
+  `FUN_00011c24(0x3e8)`); those run after the new-game seed, so they stay
+  deterministic.
+
+## The complete `g_rng_state` write-site census
+
+Scanning the whole flat image for every dword write (`A3`, `89 /r` for all
+eight registers, `C7 /0`) to 0x4cd7c yields **exactly eight sites**, all
+identified:
+
+| addr | instruction | what it is |
+|------|-------------|------------|
+| 0x5bae7 | `mov [0x4cd7c],eax` | `rng_next` — the LCG advance |
+| 0x5bb16 | `mov [0x4cd7c],eax` | `rng_seed` — the only seeding site |
+| 0x322eb | `mov [0x4cd7c],edi` | `galaxy_regenerate` — final restore (uVar5) |
+| 0x320bf | `mov [0x4cd7c],esi` | `FUN_00031fe4` moon generator — restore |
+| 0x3238b | `mov [0x4cd7c],esi` | `FUN_00032304` — restore |
+| 0x3091a | `mov [0x4cd7c],eax` | unlabeled surface generator after `galaxy_gen_surface` (uses stride `[0x4e77c]`) — restore |
+| 0x24b0a | `mov [0x4cd7c],edi` | unlabeled noise/map generator (0x800-byte fill at 0x150f0 + 0x100 rolls) — restore |
+| 0x223f0 | `mov [0x4cd7c],eax` | savegame-load (0x222b4): restores the snapshot `FUN_000220d4` took into 0xc3b8, so a load does not perturb the live stream |
+
+Consequence: the ONLY way `g_rng_state` ever changes is via `rng_next`'s LCG
+advance or an explicit `rng_seed`. There is no clock-derived seeding of the
+main stream (the clock only feeds `g_rng_state2`).
+
 ## Open questions
 
-- Initial value of `g_rng_state` before the first `rng_seed` at runtime
-  (cold start / title screen rolls) — never written at init; is there an
-  earlier seed path we have not found?
-- Source of the galaxy seed (galaxy struct +0x98): name hash, or a number the
-  player enters?
+- Initial value of `g_rng_state` before the first `rng_seed` at runtime:
+  with BSS zero-initialised it would be 0 (and, since `rng_next` from state 0
+  returns 0 forever, anything that rolls before the new-game `rng_seed(12345)`
+  is degenerate but harmless — menu/title animation). The remaining unknown is
+  the ordering on the startup path (indirect dispatch): does the title/menu
+  roll the main RNG before `g_game_state` reaches 8, and does anything call
+  `rng_seed` with a non-fixed value first? The two other
+  reachable-but-unlabelled `rng_seed` callers (0x22dc3, 0x24a15) have no
+  direct callers and are candidates.
 - Precise subsystem roles for the heavy users `FUN_0000c234`, `FUN_00009a34`,
   and the 0x49000..0x54000 combat block — next candidates for their own
   mechanics docs.
