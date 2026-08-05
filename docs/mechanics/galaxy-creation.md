@@ -1,8 +1,10 @@
 # Galaxy creation
 
-Status: confirmed (static disassembly); the one indirect-call assumption (the
-new-game path reaching the home-galaxy block) is flagged below and awaits
-runtime confirmation.
+Status: creation routine and regeneration chain confirmed (static
+disassembly). The home-galaxy block at 0x11274 is confirmed but the values it
+copies are NOT in the flat (see "Open question" below). The one indirect-call
+assumption (the new-game path reaching the home-galaxy block) is flagged below
+and awaits runtime confirmation.
 Source: disassembly (`build/flat/FRAGILE.EXE.flat` + `build/named/.../decompiled.c`)
 
 ## Overview
@@ -46,7 +48,8 @@ Verified asm flow:
 | +0x50  | 1 | galaxy type, 4..8 (roll + 4) |
 | +0x51  | 1 | flag byte (cleared for the home galaxy) |
 | +0x54, +0x58 | 4×2 | position/scale pair (written by `FUN_00011ba4`) |
-| +0x6c, +0x15e | 2×9 | home galaxy's 9 starting-planet slots (word pairs from tables 0xa384 / 0xa3c0) |
+| +0x6c | 2×10 | starting-planet value set; written by the 0x11274 block (10 words) and by `FUN_000127f4` / `FUN_00012894` |
+| +0x15e | 2×10 | second starting-planet value set; written by the 0x11274 block only, at +0x15e+2·(i+1) for i=0..9 (lands at +0x160..+0x176 plus one word at +0x1de) |
 | +0x98  | 4 | **the galaxy seed** — everything else derives from it |
 | +0x9c  | 2 | planet count (odd, 25..31) |
 | +0xa5  | 1 | tick-down counter (decremented in main) |
@@ -61,12 +64,27 @@ Verified asm flow:
 
 ## Creation sites
 
-- **Home galaxy** — block at 0x11274 inside `FUN_000104c4`:
-  `rng_seed(0x3039)` (== **12345**, the canonical LCG seed) immediately before
-  `FUN_00011a64`; then `FUN_00011c24(0xb4)`, `FUN_00023054(1)`, `[+0x51]=0`,
-  the 9 starting-planet word pairs copied from the static tables 0xa384/0xa3c0
-  into +0x6c/+0x15e, `FUN_00031af4`, and finally `g_galaxy_ptr = galaxy`.
+- **Home galaxy** — a **standalone routine at 0x11274** (0x11274..0x112e9).
+  Earlier notes attributed it to `FUN_000104c4`, but `functions.tsv` shows no
+  function covering 0x11274 (it sits in a gap) and the disassembly is a
+  self-contained routine; Ghidra never recovered it as a function. Verified
+  flow:
+  - `rng_seed(0x3039)` (== **12345**, the canonical LCG seed);
+  - `FUN_00011a64` → galaxy created (deterministic, see above);
+  - `FUN_00011c24(0xb4)` — position/rover placement;
+  - `FUN_00023054(1)` — name/index assignment;
+  - `[+0x51] = 0`;
+  - copy loop i = 0..9 (ten iterations, `cmp eax,0x9; jle`): `[+0x6c+2i]` ←
+    word `[i*2+0xa384]`, and `[+0x15e+2*(i+1)]` ← word `[i*2+0xa3c0]` (the
+    second write uses `edx` already bumped past the +0x6c slot, so the +0x15e
+    set lands at +0x160..+0x176 for i=0..8 and one word at +0x1de for i=9);
+  - `FUN_00031af4` — rank the ten values;
+  - `g_galaxy_ptr = galaxy` (`[0xc3c4]`).
   The fixed seed makes the home galaxy's layout reproducible every new game.
+  **Caveat:** the two word tables at 0xa384 / 0xa3c0 that this loop reads do
+  **not exist as data in the flat image** — those addresses hold executable
+  code (Ghidra's `FUN_0000a3b4` @ 0xa3b4 starts inside the second table), and
+  no relocation record targets them. See "Open question" below.
 - **Race galaxies** — `FUN_0000ff25` @ 0xff25 creates the per-race galaxies:
   each `FUN_00011a64` call is followed by `FUN_00011c24(<size code>)` (0xe4,
   0x130, 0x12f, 0x12e, 0x16e …) and `FUN_00023054(<name index>)` (0x9/0xa/0xb
@@ -122,10 +140,48 @@ stream.
 - Confirmed at runtime still pending: that the 0x11274 home-galaxy block (via
   `FUN_0000ff25`'s indirect dispatch) runs before any in-game galaxy creation.
 
+## Open question: the 0xa3xx "static tables" do not exist in the flat
+
+Several code paths read word tables from the 0xa3xx range, which the flat
+image contains as **executable code**, not data:
+
+| reference | used by | content at that flat address |
+|-----------|---------|------------------------------|
+| 0xa384 (10 words) | 0x11274 block → `+0x6c` | code (tail of the routine before `FUN_0000a3b4`) |
+| 0xa3c0 (10 words) | 0x11274 block → `+0x15e` | **inside `FUN_0000a3b4` @ 0xa3b4** (verified function) |
+| 0xa3d6, stride 0xe | `FUN_000127f4` → `+0x6c` | code |
+| 0xa3dc / 0xa3de, stride 0xe | `FUN_00012894` → `+0x6c` | code |
+| 0xa398 (3-wide) | main-loop auto-spawn gate | code |
+| 0xa460 | `FUN_00011ba4` | code |
+
+Checks performed: no relocation record (any decoded encoding) targets these
+addresses or the instruction dwords that embed them; no data-region dword
+points at them; Ghidra's own function list places `FUN_0000a3b4` at 0xa3b4.
+So the values the routines would copy are **not present in the flat as
+static data**. Working hypotheses, unresolved without a runtime trace:
+
+1. **The bound-image fixups are not fully applied.** Only record groups 0..91
+   decode (parse_ratio 0.43); the loader's post-bind relocation for groups ≥92
+   is undecoded (`docs/dataformats/dos4gw-bound.md`). If some records carry
+   *resolved table addresses* rather than a uniform +load-base, the real
+   tables live elsewhere in the image and the 0xa3xx dwords are placeholders.
+   (Counter-evidence: no decoded record Y-value lands in the data region
+   0x8D000..0x92000, and the whole-image +load-base story cannot move the
+   tables out of the code region.)
+2. **The home block / these slots are never executed in the retail new-game
+   path** and the real starting values come from `FUN_00012894`'s other branch
+   (copy from an existing same-type galaxy). This would also make the 0x11274
+   block effectively dead code.
+3. The code bytes genuinely serve double duty (least likely).
+
+Until a DOSBox-X trace settles this, treat every "value copied from
+table 0xa3xx" claim as **unverified**.
+
 ## References
 
 - `docs/mechanics/rng.md` — RNG internals, the seed formula, the exhaustive
   `g_rng_state` write-site census, the open cold-start-ordering question.
 - `build/named/FRAGILE.EXE.flat/decompiled.c` — `FUN_00011a64` @ line 9626
-  (seed write @ 9652), `FUN_000104c4` (0x11274 block), `FUN_0000ff25` @ 8786,
+  (seed write @ 9652), the 0x11274 block (standalone routine; not in
+  `functions.tsv`), `FUN_0000a3b4`, `FUN_0000ff25` @ 8786,
   `galaxy_regenerate` @ 25483.

@@ -193,22 +193,26 @@ struct is created. There is no name hash, and the player never enters it.
 - `galaxy_regenerate` reseeds from that field (`rng_seed([esi+0x98])`) before
   re-running the generator chain, then restores the pre-call state, so every
   galaxy is fully determined by its 32-bit seed.
-- The player's **home galaxy is deliberately deterministic**: the setup block
-  at 0x11274 inside `FUN_000104c4` runs `rng_seed(0x3039)` (== **12345**, the
-  canonical LCG seed) immediately before calling `FUN_00011a64`, then fills
-  the galaxy's 9 starting-planet slots from the static tables at
-  0xa384/0xa3c0 (word pairs into +0x6c/+0x15e) and stores the galaxy pointer
-  in `g_galaxy_ptr` (0xc3c4). The race/extra galaxies created by
-  `FUN_0000ff25` @ 0xff25 then roll from the same deterministic stream. Net
-  effect: **the galaxy layout is a fixed universe on every new game**; only
-  the clock-seeded `g_rng_state2` encounter stream varies per run.
+- The player's **home galaxy is deliberately deterministic**: a standalone
+  routine at 0x11274 (earlier notes said "inside `FUN_000104c4`" — wrong; no
+  `functions.tsv` entry covers 0x11274) runs `rng_seed(0x3039)` (== **12345**,
+  the canonical LCG seed) immediately before calling `FUN_00011a64`, then
+  copies ten words into `+0x6c`/`+0x15e` and stores the galaxy pointer in
+  `g_galaxy_ptr` (0xc3c4). **Caveat:** the source "tables" at 0xa384/0xa3c0
+  are executable code in the flat (see `docs/mechanics/galaxy-creation.md`,
+  "Open question"), so the copied values are unverified until a runtime trace.
+  The race/extra galaxies created by `FUN_0000ff25` @ 0xff25 then roll from
+  the same deterministic stream. Net effect: **the galaxy layout is a fixed
+  universe on every new game**; only the clock-seeded `g_rng_state2` encounter
+  stream varies per run.
   (Assumption to confirm at runtime: that the 0x11274 block is on the
   new-game path; it is reached only by indirect call through `FUN_0000ff25`.)
   Note the main loop can also create galaxies directly: in state 8,
   `main` calls `FUN_0000f544` (7 creations) and an auto-spawn gate
   (`table[0xa398][[0x16d65]+3*[0x16d64]] > [0xca20]` → `FUN_00011a64` then
   `FUN_00011c24(0x3e8)`); those run after the new-game seed, so they stay
-  deterministic.
+  deterministic. (Same caveat applies to the 0xa398 gate table: also code in
+  the flat.)
 
 ## The complete `g_rng_state` write-site census
 
