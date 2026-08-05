@@ -93,3 +93,39 @@ Analysis conclusions are written by us into `docs/dataformats/` and
 `docs/mechanics/`; raw decompiled output stays in `build/`. Never edit the
 Ghidra exports in `build/decomp/` in place — treat them as read-only and
 encode any renaming in `config/ghidra/rename-map.json` via stage `11`.
+
+## Documentation strategy: two tiers
+
+Our documentation is written in two distinct tiers, because the audience for
+it is twofold:
+
+1. **Technical descriptions** — the working analysis used for further reverse
+   engineering and for the rebuild. These are the existing notes in
+   `docs/mechanics/` and `docs/dataformats/`. They are allowed to (and
+   expected to) reference addresses, variable names, register conventions,
+   asm-level facts, and open questions. They are the source of truth; they
+   are primarily for the agent and the developer to consult while
+   decompiling.
+
+2. **Functional descriptions** — player-oriented explanations of how the game
+   works, written for a gamer who wants to understand the mechanics in depth
+   but has no interest in (and should not be burdened with) the internals:
+   no variable names, no pointer/hex addresses, no Ghidra or disassembly
+   references. They describe behaviour and mechanics ("how fast do ships
+   accelerate", "what determines planet yields") in the language of the game,
+   not of the binary. These are the docs meant for public publication
+   (e.g. GitHub Pages).
+
+Rules that follow from this:
+
+- When we document a mechanic, the technical analysis lands in
+  `docs/mechanics/` (or `docs/dataformats/`) first; a functional write-up for
+  the same mechanic is a separate, later step, written from that analysis.
+- Functional docs must be self-contained prose: no `FUN_0000…`, no `0x…`,
+  no struct offsets, no register names. Sanitise away any internal detail
+  that only makes sense inside the decompilation project.
+- Nothing from `build/` is ever published; functional docs are plain prose and
+  contain no derived game content.
+- If a technical and a functional doc describe the same mechanic, they live in
+  different files (or different sections) so that the technical detail never
+  leaks into the player-facing text.
