@@ -1,12 +1,20 @@
 {
-  "note": "Curated descriptive names for the decompiled flat DOS/4G image (stage 07). Addresses are image-relative (flat image imported at base 0). These are OUR analysis conclusions: each entry is added as its meaning is established from reading decompiled.c, and the docs/ notes carry the evidence. g_mode_flag gates init in main and toggles behavior across many subsystems; exact semantics TBD.",
+  "note": "Curated descriptive names for the decompiled flat DOS/4G image (stage 07). Addresses are image-relative (flat image imported at base 0). These are OUR analysis conclusions: each entry is added as its meaning is established from reading decompiled.c, and the docs/ notes carry the evidence. g_mode_flag gates init in main and toggles behavior across many subsystems; exact semantics TBD. The RNG names (rng_*) and galaxy-gen names (galaxy_*) are documented in docs/mechanics/rng.md.",
   "globals": {
     "0x16d6c": "g_mode_flag",
     "0x36b64": "g_game_state",
-    "0x4cd7c": "g_rng_state"
+    "0x4cd7c": "g_rng_state",
+    "0x4cd80": "g_rng_state2",
+    "0x1e460": "g_last_galaxy_seed"
   },
   "functions": {
-    "0x5bada": "rng_next"
+    "0x5bada": "rng_next",
+    "0x5bac2": "rng_next2",
+    "0x5ba58": "rng_seed_clock",
+    "0x5bb0e": "rng_seed",
+    "0x5baf2": "rng_mix",
+    "0x30874": "galaxy_gen_surface",
+    "0x320d4": "galaxy_regenerate"
   },
   "literals": {
     "0xc3f4": "g_obj_list_sentinel"

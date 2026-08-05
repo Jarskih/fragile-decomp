@@ -1,0 +1,193 @@
+# Random-number generator
+
+Status: confirmed (static disassembly); runtime trace still deferred.
+Source: disassembly (`build/flat/FRAGILE.EXE.flat` + `build/named/.../decompiled.c`)
+
+## Summary
+
+The game has **two separate 32-bit LCGs** with the same multiplier, plus one
+**stateless mixer** used where results must be deterministic:
+
+| name | addr | state | seeded by | used for |
+|------|------|-------|-----------|----------|
+| `rng_next`  | 0x5bada | `g_rng_state`  (0x4cd7c) | `rng_seed` (0x5bb0e) | the general game RNG (~450 call sites) |
+| `rng_next2` | 0x5bac2 | `g_rng_state2` (0x4cd80) | `rng_seed_clock` (0x5ba58) | encounter / object-placement rolls only (FUN_0002f114) |
+| `rng_mix`   | 0x5baf2 | none (stateless) | — | deterministic spawn positions, table lookups |
+
+Both LCGs are the classic *Numerical Recipes* generator with multiplier
+**69069 (0x10dcd)** mod 2³². Because 69069 ≡ 5 (mod 8) and the seed functions
+force the state odd, each LCG has the full period **2³⁰** on the reachable
+(odd) states and can never fall into the multiplicative LCG's absorbing zero
+state.
+
+## The core roll: `rng_next(range)` @ 0x5bada
+
+Raw bytes:
+
+```
+52                push edx
+89C2              mov edx,eax           ; edx = range
+69057CCD0400CD0D  imul eax,[0x4cd7c],0x10dcd   ; state' = state * 69069 (mod 2^32)
+A37CCD0400        mov [0x4cd7c],eax     ; state = state'
+F7E2              mul edx               ; edx:eax = (u64)state' * range
+89D0              mov eax,edx           ; result = high 32 bits
+5A                pop edx
+C3                ret
+```
+
+Formula, exactly:
+
+```
+state  = (state * 69069) mod 2^32
+result = (state * range) >> 32          ; u64 multiply, take high word
+```
+
+Calling convention (verified at every call site): **range arrives in EAX**,
+the result is returned in EAX; all other registers are preserved (EDX is
+pushed/popped). `result ∈ [0, range)` for every `range ≥ 1`. This is the
+standard multiply-high uniform reduction — slightly biased, but that is the
+game's exact behaviour, so the rebuild must reproduce it bit-for-bit if it
+wants identical sequences.
+
+The decompiled view models the ABI badly (`__fastcall(param_1=ECX,
+param_2=EDX)` returning `CONCAT44(param_2, high32)`) because EAX is an implicit
+input; trust the asm above, not the signature.
+
+## Seeding the main RNG: `rng_seed(seed)` @ 0x5bb0e
+
+```
+C1C010            rol eax,0x10    ; swap 16-bit halves
+66C1E002          shl ax,0x2      ; low word <<= 2
+40                inc eax         ; +1 -> odd, never zero
+A37CCD0400        mov [0x4cd7c],eax
+C3                ret
+```
+
+So `g_rng_state = (ror16(seed) with low word << 2) + 1`. The `+1` (and the
+`<<2` evenness before it) forces the state **odd**, which is exactly what the
+LCG needs for full period; `rng_seed(0)` yields 1. The reseed value normally
+comes from a caller argument (e.g. the galaxy seed) placed in EAX.
+
+## The second LCG: `rng_seed_clock` @ 0x5ba58 + `rng_next2` @ 0x5bac2
+
+`rng_seed_clock` runs **once**, in the main initialisation routine
+`FUN_0005bd24` (0x5bd24), and seeds `g_rng_state2` from wall-clock entropy:
+
+- two reads of the PIT timer channel 0 (port 0x40) as a 16-bit counter;
+- DOS get-system-time (INT 21h AH=2Ch): `(hour*60+minute)*6000 + second*100 +
+  hundredths`;
+- the low word is forced odd (`& 0xfffd | 1`).
+
+`rng_next2` is byte-for-byte the same shape as `rng_next` but on
+`g_rng_state2`. Its **only** consumer is `FUN_0002f114` (0x2f114, 859 B): the
+encounter/object-placement generator, which rolls positions/offsets for a slot
+counter `iRam0001e47c` — offsets of ±0x300/±0xa00, even-aligned fields
+(`& 0xfffffffe`), and a 0x80000-space coordinate — writing into the tables at
+0x5e5e4/0x5e60c/0x5e5bc/0x5e144/0x5e594/0x5e16c. So the game keeps a separate,
+clock-seeded stream for procedural placement so it cannot perturb — or be
+perturbed by — the main gameplay stream.
+
+## Deterministic mixer: `rng_mix` @ 0x5baf2
+
+Stateless: it reads only registers and advances no state, so the same inputs
+always give the same output. It folds three 32-bit values (EBX, ECX, EDX) by
+rotate-xor-add, then multiply-high against EAX:
+
+```
+h = rotl(ebx^ecx^edx, 24) + rotl(ecx, 16) + rotl(edx, 8)
+result = (u64)in_EAX * h >> 32
+```
+
+Used where placement must be repeatable regardless of RNG history:
+- `FUN_0002d1c4` (0x2d1c4): spawn position — low nibble is the X cell and the
+  next nibble the Y cell of a 16×16 grid scaled by 0x8000, offset from
+  −0x3c000;
+- `FUN_00054864` (0x54864): picks a table index whose `[min,max]` range
+  (table at 0x37c22, 0x14-byte records) contains a mixed value, retrying up to
+  3 times.
+
+## Deterministic galaxy generation (snapshot / reseed / restore)
+
+The most important consequence of the design: **the galaxy is generated
+deterministically from a seed without disturbing the live RNG.** Several
+generators in 0x30800..0x32000 follow the same pattern — save `g_rng_state`,
+`rng_seed(galaxy_seed)`, generate, restore:
+
+- `galaxy_gen_surface` @ 0x30874: reseeds from its seed argument, runs world
+  ticks (`FUN_0005bd04`) over a per-world-type pointer base
+  (`DAT_00079b0c[type]`, stride `DAT_0004e77c`), writes a height field
+  (values like `0x20000 / (round(f)+0x801)`) via a stream of `rng_next` rolls,
+  then restores the state. Called from galaxy regeneration with the seed
+  pushed on the stack.
+- `galaxy_regenerate` @ 0x320d4: re-runs the whole pipeline only when the
+  galaxy's seed field has changed. Verified asm flow:
+  `esi = galaxy*; save g_rng_state;`
+  `if ([0x1e460] == [esi+0x98] && flags set) skip;`
+  `call 0x5da51 x2; call galaxy_gen_surface(seed=[esi+0x98]); call 0x601a4;`
+  `call 0x31fe4(esi, 0x24242424); call 0x5ce74(0x20000); call 0x5bd04;`
+  `eax=[esi+0x98]; call rng_seed; call 0x30af4/0x310b4/0x315d4/0x31884/`
+  `0x31b54/0x31e64; [0x1e460]=[esi+0x98];`
+  `restore g_rng_state.`
+  So the whole galaxy depends only on the 32-bit seed at galaxy struct +0x98
+  (named `g_last_galaxy_seed` @ 0x1e460 caches it for the changed-check).
+  The source of that seed (galaxy-name hash?) is still open.
+- `FUN_000315d4` @ 0x315d4: `rng_seed(param)`, then two `rng_next`-driven
+  generation loops (`FUN_00031234`, `FUN_00031384`).
+- `FUN_00031fe4` @ 0x31fe4: `rng_seed()`, spawns six objects in a row
+  (`+0x140` spacing, flags `|1`, per-object rolls), then restores.
+- `FUN_000320d4`-adjacent callers, and `FUN_000220d4` @ 0x220d4 which stores
+  the *current* `g_rng_state` into the planet record field 0xc3b8 before
+  ticking — a per-planet seed snapshot, meaning is TBD.
+
+## Neighbouring helper cluster (NOT RNG)
+
+Right after `rng_seed` sit four arithmetic helpers used all over the code for
+fixed-point scaling; they take no state:
+
+- `FUN_0005bb1c` — `(i64)(a*b)/c` truncating
+- `FUN_0005bb21` — `(a*b)/c` rounded to nearest
+- `FUN_0005bb2f` — `(a*b)/c` rounded away from zero
+- `FUN_0005bb42` — `(u64)(a*b) rol (bl&31)`
+
+Don't mistake them for PRNGs (they are pure functions of their inputs).
+
+## Call-site census
+
+A byte scan of the code region finds **448 `call rng_next` instructions**; the
+named view exposes ~300 of them as source lines across **~110 distinct caller
+functions**. Distribution of the immediate range values (42 distinct; the rest
+are register/computed ranges, e.g. a player stat or map dimension):
+
+| range | rolls | notes |
+|-------|-------|-------|
+| 0x64 (100) | 39 | dominant — classic percentage roll (`roll < threshold`) |
+| 0x2 / 0x3 / 0x4 | 25/25/19 | small choice / variant counts |
+| 0xa (10) | 17 | d10-style rolls |
+| 0x8 / 0x6 / 0x5 | 13/10/10 | small pools |
+| 0x100 (256) | 10 | byte/8-bit rolls |
+| 0xc8 (200), 0x32 (50), 0x3c (60), 0x28 (40) | 5/4/4/3 | economy/combat thresholds |
+| 0x4000–0x10000, 0x800, 0x1000 | ~14 | coordinate / screen-space offsets |
+| 0x9c40 (40000), 0xc350 (50000) | 2 | large distance rolls |
+
+Clustering by address region (call sites per 64 KiB block):
+
+| region | functions | rolls | reading |
+|--------|-----------|-------|---------|
+| 0x00000..0x10000 | 38 | 96 | main loop, AI, entity update (incl. `FUN_0000c234`, `FUN_00009a34`) |
+| 0x10000..0x20000 | 39 | 97 | combat/weapons/terrain helpers, `FUN_0002d1c4` placement |
+| 0x20000..0x40000 | 17 | 68 | galaxy generation, `FUN_0002f114` encounter placement (state2) |
+| 0x40000..0x60000 | 17 | 46 | combat/damage rolls (0x49000..0x54000), init `FUN_0005bd24` |
+
+## Open questions
+
+- Initial value of `g_rng_state` before the first `rng_seed` at runtime
+  (cold start / title screen rolls) — never written at init; is there an
+  earlier seed path we have not found?
+- Source of the galaxy seed (galaxy struct +0x98): name hash, or a number the
+  player enters?
+- Precise subsystem roles for the heavy users `FUN_0000c234`, `FUN_00009a34`,
+  and the 0x49000..0x54000 combat block — next candidates for their own
+  mechanics docs.
+- The `rng_mix` input registers at each call site (what the caller leaves in
+  EAX/EBX/ECX/EDX), to pin down exactly what makes each placement
+  deterministic.

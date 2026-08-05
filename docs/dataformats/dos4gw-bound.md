@@ -80,14 +80,38 @@ ASCII density (printable fraction < 0.10 across two pages → code ended;
 0x92000..EOF       strings / resource-file table (printable density 0.85..0.93)
 ```
 
-The string region is a **resource-file table**: records such as `*_B\AR14.256`
-… `*_B\AR18.256`, `_MS\fontds.256`, `_MA\pb01.vid`, plus message strings
-("Out of memory making fleet combat list", "Too many menus", …). Code contains
-67 pointer dwords into this region and data 112 (179 total). The `_M*` path
-tokens match ISO directories `_B/ _MS/ _MA/ _C1.._C6/`; `_MA\pb01.vid`
-corresponds to `build/iso/_MA/PB01.VID`. Note the extracted string starts are
-region-membership heuristics, not exact table-field starts (e.g. one code
-pointer resolves to 0x940C6, an interior table field).
+The string region is a **disc-wide resource catalog**, one sub-table per ISO
+directory, of NUL-terminated `DIR\name` records (a `*` prefix marks most of
+them), each followed by a short trailer (1-3 bytes, see Open questions), then
+message/format strings (0x92000..0x92204, e.g. "Out of memory making fleet
+combat list", "Too many menus"; format strings use `\x07`/`\x08` directive
+bytes) and finally audio/palette binary data. Sub-tables in order:
+
+```
+0x92204  _MS    menu sprites (font1/clock/edge/disc …)
+0x9237c  _MA    intro/menu videos (pbNN/psNN/pmNN/phNN/stNN .vid)
+0x92a04  _SCITEK scitek videos (st00..st37 .vid)
+0x92cfc  _TRADE trade icons (tiNNN.256, ti001big.vid)
+0x92d60  _PHOTO photo/mugshot sprites (cs/ag/csm/agm/trm NN.256)
+0x93450  _S     ship sprites (PT/PU/PV/PW/PX/PY/PZ/PS/RI/BR/MK/AR/MN/AC …)
+0x93740  _B     sprite sheets from the `_B/_B` container (PBS1..4, RIS, …)
+0x94b00  _M     mini sprites (PM/RIM/BRM/MKM/ARM/MAM/ACM NN.256)
+0x94f50  _SFX   sound effects (.WAV); 0x96000 _VO voice (.WAV)
+```
+
+`_MA\pb01.vid` ↔ `build/iso/_MA/PB01.VID`; the `_B` names match the 206-entry
+directory inside the `_B/_B` container verbatim.
+
+Despite the region's size, nothing in the flat image references it: the 179
+"pointer dwords" stage 06 reports (67 code + 112 data) are all byte
+coincidences — the four code-side samples are `cmp ax,0xb` / `mov dword
+[reg+disp],0` instruction encodings, and of 262 aligned flat-portion dwords
+landing inside the region, none points at a `*`/`_` name start. The 16,105
+decoded relocation targets all lie below 0x92000, the message strings have zero
+exact dword references, and no `GRAPHICS`/`Vide` payload magic is embedded in
+the image. The catalog is dead data in the bound image: files are resolved at
+runtime (by name from the CD), so this is not a pointer table into the flat
+image.
 
 ## How established
 
@@ -112,5 +136,16 @@ pointer resolves to 0x940C6, an interior table field).
 - Exact meaning of the relocation types/ops (0x10 vs 0x00/0x01, op 0x01 vs
   0x03) — a runtime load-base trace would pin these down (deferred; would need
   a custom DOSBox-X `--enable-debug` build).
-- Whether the 4-byte trailer after each resource-table name is size/offset/
-  flags — to be confirmed from the reading code in Ghidra.
+- What the 1-3 trailing bytes after each catalog name mean. **Resolved as NOT
+  size, offset, hash, sector count, or container index** (checked against the
+  `_B/_B` container directory offsets/sizes and ISO file sizes). They are
+  deterministic per-record values that repeat by record position: `_B`/`_S`/`_M`
+  share one 11-value cycle (`0a0000 000000 006100 000038 000000 040404 040400
+  000098 000000 0a00f8 000000`) with a per-table starting phase (`_S` at slot 7,
+  `_M` at slot 8, `_B` at slot 0); `_MA` uses its own 11-value cycle for the
+  pb00-39 block (`000c c7fe 3536 6e79 695f 616e 726f 6677 0000 3600 3600`);
+  `_SCITEK` uses a 12-value and `_PHOTO` a 9-value cycle; `_MS` repeats values
+  (font1=clock `3c 80`, edge=disc `f4 c7 fe`, fontmb=arrow2 `0c`). The values
+  are therefore a per-slot tag (sprite-bank / palette / type id) assigned by
+  the build tool rather than geometry or pointer data; exact semantics
+  unresolved.
