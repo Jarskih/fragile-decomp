@@ -154,20 +154,16 @@ image contains as **executable code**, not data:
 | 0xa398 (3-wide) | main-loop auto-spawn gate | code |
 | 0xa460 | `FUN_00011ba4` | code |
 
-Checks performed: no relocation record (any decoded encoding) targets these
-addresses or the instruction dwords that embed them; no data-region dword
-points at them; Ghidra's own function list places `FUN_0000a3b4` at 0xa3b4.
-So the values the routines would copy are **not present in the flat as
-static data**. Working hypotheses, unresolved without a runtime trace:
+Checks performed: **the relocation record stream is fully decoded and verified
+against the flat (37,311 records, groups 1..233 — `docs/dataformats/
+dos4gw-bound.md`)**; no record targets these addresses or the instruction dwords
+that embed them, no data-region dword points at them, and Ghidra's own function
+list places `FUN_0000a3b4` at 0xa3b4. So the values the routines would copy are
+**not present in the flat as static data**. Working hypotheses, unresolved
+without a runtime trace:
 
-1. **The bound-image fixups are not fully applied.** Only record groups 0..91
-   decode (parse_ratio 0.43); the loader's post-bind relocation for groups ≥92
-   is undecoded (`docs/dataformats/dos4gw-bound.md`). If some records carry
-   *resolved table addresses* rather than a uniform +load-base, the real
-   tables live elsewhere in the image and the 0xa3xx dwords are placeholders.
-   (Counter-evidence: no decoded record Y-value lands in the data region
-   0x8D000..0x92000, and the whole-image +load-base story cannot move the
-   tables out of the code region.)
+1. ~~**The bound-image fixups are not fully applied.**~~ **Resolved:** the
+   grammar is fully decoded, so this no longer applies.
 2. **The home block / these slots are never executed in the retail new-game
    path** and the real starting values come from `galaxy_setup_start_values`'s other branch
    (copy from an existing same-type galaxy). This would also make the 0x11274

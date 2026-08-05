@@ -48,6 +48,11 @@ Nothing derived from the game's copyrighted files may ever be committed.
    manifest (`iso.sha256`: hashes and file names only — no contents), and
    `Makefile`/`.gitignore`/etc.
 
+7. **Record mistakes immediately.**
+   When analysis finds that an earlier conclusion was wrong or incomplete,
+   correct the affected documentation right away, in the same session, instead
+   of deferring the fix. Never let a stale note survive an overturned finding.
+
 ## What is committed vs. what is not
 
 | Committed (ours)                        | Never committed (theirs/derived)                |

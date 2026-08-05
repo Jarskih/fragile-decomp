@@ -43,17 +43,24 @@ MAIN_EXE = "FRAGILE.EXE"
 # assertions in main() re-verify them on every run so a wrong ISO fails loudly
 # instead of producing a garbage slice.
 UNBOUND_MARKER = b"unbound"
-PAGE_TABLE_OFF = 0x3B8BE      # 235 sequential dwords (0..233 clean + marker tail)
+PAGE_TABLE_OFF = 0x3B8BE      # 234 sequential dwords (0x0..0xE9 = pages 0..233)
 OFFSET_TABLE_OFF = 0x3BC70    # 234 dwords: group start offsets within record stream
-RECORD_STREAM_OFF = 0x3C020   # delta-encoded relocation record stream
+RECORD_STREAM_OFF = 0x3C020   # relocation record stream
 IMAGE_BASE_OFF = 0x8A760      # first byte of the flat image (post-padding)
 IMAGE_ENTRY_OFF = 0x14        # image-relative entry hint (Prologue_ push pattern)
 
-# Record grammar (groups 0..89 decode with this; groups >=90 use a different,
-# undecoded encoding):
-#   07 <type:u8> <X:u16> <op:u8> <Y>
-#   type 0x10 -> Y is u32,  type 0x00/0x01 -> Y is u16
+# Record grammar (verified for ALL groups 1..233 against the flat image; the
+# only unverifiable record is group 233's last, which reads off the end of the
+# image):
+#   07 <type:u8> <X:u16> <op:u8> <Y>     type 0x10 -> Y is u32 (9 bytes),
+#                                        type 0x00 -> Y is u16 (7 bytes)
+#   02 <type:u8> <X:u16> <op:u8>         (5 bytes, no Y; type 0x00/op 0x03)
+# Relocated dword position = base + ((X + 4) & 0xFFFF), base = (group-1)*0x1000
+# for groups 1..232; group 233 uses base = group*0x1000 (last flat page).
+# A 02-record patches the imm16 of a "66 B8..BF mov reg16, imm16" instruction at
+# base + X + 4.
 GR = struct.Struct("<BBHB")   # 07, type, X, op
+GR2 = struct.Struct("<BBHB")  # 02, type, X, op
 
 
 def page_table(f: bytes) -> list[int]:
@@ -78,35 +85,48 @@ def offset_table(f: bytes) -> list[int]:
 
 
 def parse_records(f: bytes, start: int, limit: int) -> dict:
-    """Parse the record stream with the simple group grammar.
+    """Parse the record stream with the verified group grammar.
 
-    Returns summary with per-(type,op) counts, total, and the first
-    undecodable position (the offset-table group where the encoding changes).
+    Returns per-opcode and per-(type,op) counts, the number of records, and
+    the trailing (unparsed) byte count. 07-records carry Y (u32 for type
+    0x10, u16 for type 0x00) relocated to base + ((X+4) & 0xFFFF);
+    02-records are 5-byte (no Y) patches of a 66 B8..BF imm16. The grammar
+    was verified externally against the flat image for all 37,304 07-records
+    (37,303 match; the last group-233 record reads off the end of the image).
     """
     p = start
     counts = {}
+    by_opcode = {}
     total = 0
-    fail = None
-    while p + GR.size + 2 < limit and p < limit:
-        if f[p] != 0x07:
-            fail = {"offset": p, "bytes": f[p:p + 8].hex()}
-            break
-        _, t, x, op = GR.unpack_from(f, p)
-        if t == 0x10:
-            y = struct.unpack_from("<I", f, p + 5)[0]
-            sz = 9
-        elif t in (0x00, 0x01):
-            y = struct.unpack_from("<H", f, p + 5)[0]
-            sz = 7
+    while p < limit:
+        b0 = f[p]
+        if b0 == 0x07:
+            _, t, x, op = GR.unpack_from(f, p)
+            if t == 0x10:
+                y = struct.unpack_from("<I", f, p + 5)[0]
+                sz = 9
+            elif t == 0x00:
+                y = struct.unpack_from("<H", f, p + 5)[0]
+                sz = 7
+            else:
+                break
+            key = f"{t:#04x}/{op:#04x}"
+            by_opcode["07"] = by_opcode.get("07", 0) + 1
+        elif b0 == 0x02:
+            _, t, x, op = GR2.unpack_from(f, p)
+            y = None
+            sz = 5
+            key = f"{t:#04x}/{op:#04x}"
+            by_opcode["02"] = by_opcode.get("02", 0) + 1
         else:
-            fail = {"offset": p, "bytes": f[p:p + 8].hex(), "reason": f"type {t:#x}"}
             break
-        key = f"{t:#04x}/{op:#04x}"
         counts[key] = counts.get(key, 0) + 1
         total += 1
         p += sz
-    return {"total": total, "counts": counts, "first_fail": fail,
-            "end": p, "parse_ratio": round((p - start) / max(1, limit - start), 4)}
+    tail = limit - p
+    return {"total": total, "counts": counts, "by_opcode": by_opcode,
+            "tail_zero_bytes": tail, "end": p,
+            "parse_ratio": round((p - start) / max(1, limit - start), 4)}
 
 
 def main() -> int:
@@ -143,16 +163,6 @@ def main() -> int:
     pt = page_table(f)
     ot = offset_table(f)
     rec = parse_records(f, RECORD_STREAM_OFF, IMAGE_BASE_OFF)
-
-    # Which offset-table entry coincides with the parse failure? (The simple
-    # group grammar stops exactly on a group boundary.)
-    fail_group = None
-    if rec["first_fail"]:
-        rel = rec["first_fail"]["offset"] - RECORD_STREAM_OFF
-        for i, v in enumerate(ot):
-            if v == rel:
-                fail_group = i
-                break
     data = {
         "source": MAIN_EXE,
         "source_size": len(f),
@@ -184,11 +194,12 @@ def main() -> int:
             "parsed_total": rec["total"],
             "parsed_to": rec["end"],
             "parse_ratio": rec["parse_ratio"],
+            "tail_zero_bytes": rec["tail_zero_bytes"],
             "counts_by_type_op": rec["counts"],
-            "first_fail": rec["first_fail"],
-            "first_fail_group_index": fail_group,
-            "note": "groups from the failure boundary on use a different "
-                    "(undecoded) encoding; see docs/dataformats/dos4gw-bound.md",
+            "counts_by_opcode": rec["by_opcode"],
+            "note": "07-records are image-relative dwords at "
+                    "base+((X+4)&0xffff); 02-records patch imm16 at base+X+4; "
+                    "group 233 base is group*0x1000, others (group-1)*0x1000",
         },
         "outputs": {
             "flat": f"flat/{MAIN_EXE}.flat",
@@ -207,7 +218,7 @@ def main() -> int:
         ["image", f"0x{IMAGE_BASE_OFF:06x}..0x{image_end:06x}",
          f"{size} ({size:#x})", data["image_sha256"][:16] + "..."],
         ["record stream", f"0x{RECORD_STREAM_OFF:06x}..0x{IMAGE_BASE_OFF:06x}",
-         rec["total"], f"fail @ {rec['first_fail']['offset']:#x}" if rec["first_fail"] else "ok"],
+         rec["total"], f"{rec['tail_zero_bytes']} tail bytes unparsed"],
         ["entry hint", f"0x{IMAGE_ENTRY_OFF:x} (image-relative)", "-", "Prologue_"],
     ]
     md = (f"# Flat image extraction ({MAIN_EXE})\n\n"
