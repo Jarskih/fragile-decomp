@@ -18,7 +18,7 @@ The game keeps two independent streams of random numbers and never lets them
 mix:
 
 - One stream shapes the **universe**: it decides the galaxies, their
-  asteroids, the surfaces, the moons and the ores. This stream is deliberately
+  asteroids, their surfaces and their ores. This stream is deliberately
   **reproducible**.
 - The other stream drives **chance events during play** — the positioning and
   encounters that make each session feel alive. This stream is seeded from the
@@ -32,8 +32,8 @@ never affect the chances of what happens next in play.
 ## A galaxy is a seed
 
 Every galaxy is grown from a single starting number. Given the same starting
-number, the game produces the same galaxy — the same asteroids, surfaces,
-ores and moons, down to the last detail. Nothing about the galaxy's name or
+number, the game produces the same galaxy — the same asteroids, surfaces and
+ores, down to the last detail. Nothing about the galaxy's name or
 any player input goes into that number; it is simply the next roll of the
 universe stream at the moment the galaxy is created.
 

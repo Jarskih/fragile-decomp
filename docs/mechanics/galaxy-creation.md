@@ -120,7 +120,9 @@ Rebuilds a galaxy's content from its seed. Verified flow:
 save g_rng_state
 if (g_last_galaxy_seed != galaxy->+0x98 || FUN_0001e464 == 0 || iRam0001e470 == 0)
     galaxy_gen_surface(galaxy->+0x98)         # surface from seed
-    FUN_00031fe4()                            # 6 moons (+0x140 spacing)
+    FUN_00031fe4()                            # 12 decorative objects, 2 rings
+                                              #   of 6 (+0x140 spacing; identity
+                                              #   unconfirmed — not "moons")
     DAT_00061964 = FUN_0005ce74()             # a generation count; 0 → fatal
     rng_seed(galaxy->+0x98)                   # reseed from galaxy seed
     FUN_00030af4, 0x310b4, 0x315d4, 0x31884,
@@ -138,8 +140,8 @@ stream.
 
 ## Determinism conclusion
 
-- A galaxy's entire layout (surface, moons, star fields, planets) is a pure
-  function of its 32-bit seed at struct +0x98.
+- A galaxy's entire layout (surface, decorative ring objects, star fields,
+  planets) is a pure function of its 32-bit seed at struct +0x98.
 - The seed is produced by two `rng_next(0x10000)` rolls against the live
   `g_rng_state`, and the home-galaxy path seeds that state with the fixed
   constant **12345** first. So **the galaxy layout is a fixed universe on

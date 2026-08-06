@@ -140,8 +140,10 @@ generators in 0x30800..0x32000 follow the same pattern — save `g_rng_state`,
   below.
 - `FUN_000315d4` @ 0x315d4: `rng_seed(param)`, then two `rng_next`-driven
   generation loops (`FUN_00031234`, `FUN_00031384`).
-- `FUN_00031fe4` @ 0x31fe4: `rng_seed()`, spawns six objects in a row
-  (`+0x140` spacing, flags `|1`, per-object rolls), then restores.
+- `FUN_00031fe4` @ 0x31fe4: `rng_seed()`, spawns **twelve objects in two
+  rings of six** (`+0x140` spacing, four sprite images per ring, per-object
+  rolls), then restores. Their identity is **unconfirmed** — the game names no
+  such object ("moon" was a provisional label and is wrong).
 - `FUN_000320d4`-adjacent callers, and `FUN_000220d4` @ 0x220d4 which stores
   the *current* `g_rng_state` into the planet record field 0xc3b8 before
   ticking — a per-planet seed snapshot, meaning is TBD.
@@ -233,7 +235,7 @@ identified:
 | 0x5bae7 | `mov [0x4cd7c],eax` | `rng_next` — the LCG advance |
 | 0x5bb16 | `mov [0x4cd7c],eax` | `rng_seed` — the only seeding site |
 | 0x322eb | `mov [0x4cd7c],edi` | `galaxy_regenerate` — final restore (uVar5) |
-| 0x320bf | `mov [0x4cd7c],esi` | `FUN_00031fe4` moon generator — restore |
+| 0x320bf | `mov [0x4cd7c],esi` | `FUN_00031fe4` — restore (12 decorative objects; identity unconfirmed) |
 | 0x3238b | `mov [0x4cd7c],esi` | `FUN_00032304` — restore |
 | 0x3091a | `mov [0x4cd7c],eax` | unlabeled surface generator after `galaxy_gen_surface` (uses stride `[0x4e77c]`) — restore |
 | 0x24b0a | `mov [0x4cd7c],edi` | unlabeled noise/map generator (0x800-byte fill at 0x150f0 + 0x100 rolls) — restore |
