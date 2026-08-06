@@ -17,8 +17,8 @@ The reimplementation itself is out of scope here.
 - Pipeline stages 00–11 run against the original CD image (extract, inventory,
   Ghidra disassembly, runtime traces).
 - Data-format work underway: DOS/4G flat image, container formats, string dumps.
-- Functional descriptions are being written from the technical analysis and
-  published on this site as they mature.
+- Functional descriptions are being written from the technical analysis as it
+  matures.
 - Notes are corrected whenever a claim is overturned — nothing here outlives
   an overturned finding.
 
