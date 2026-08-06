@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import openfa_lib as lib
+import fragile_decomp_lib as lib
 
 
 def main() -> int:
@@ -156,7 +156,7 @@ def _record(cfg: dict, target: Path, h: str, src: dict) -> None:
     man = lib.hash_manifest(cfg)
     rel = str(target.relative_to(lib.ROOT))
     header = (
-        "# OpenFA ISO provenance manifest (committed for reproducibility)\n"
+        "# fragile-decomp ISO provenance manifest (committed for reproducibility)\n"
         "# Contains hashes and file names only — never any game content.\n"
         f"# source: {src['url']}\n"
     )

@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import openfa_lib as lib  # noqa: E402
+import fragile_decomp_lib as lib  # noqa: E402
 
 MAP_FILE = lib.ROOT / "config" / "ghidra" / "rename-map.json"
 

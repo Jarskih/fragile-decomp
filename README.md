@@ -1,4 +1,4 @@
-# OpenFA — Open Fragile Allegiance
+# fragile-decomp — Fragile Allegiance decompilation
 
 The **decompilation and analysis** of the 1996 DOS game **Fragile Allegiance**
 (Gremlin Interactive / Cajji Software). The goal is to understand the game's

@@ -34,7 +34,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import openfa_lib as lib
+import fragile_decomp_lib as lib
 
 MAIN_EXE = "FRAGILE.EXE"
 

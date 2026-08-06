@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import openfa_lib as lib
+import fragile_decomp_lib as lib
 
 
 def main() -> int:
@@ -76,7 +76,7 @@ def main() -> int:
 
     print()
     scope = f"  (scope: {args.only_stage})" if args.only_stage else ""
-    print(f"OpenFA toolchain check{scope}")
+    print(f"fragile-decomp toolchain check{scope}")
     print("=" * 78)
     print(lib.md_table(["tool", "version", "status", "location/note"], rows))
     print()

@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import openfa_lib as lib
+import fragile_decomp_lib as lib
 
 MAGICS = [
     ("gzip", b"\x1f\x8b"), ("zlib", b"\x78\x9c"), ("bzip2", b"BZh"),

@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import openfa_lib as lib
+import fragile_decomp_lib as lib
 
 # Brand signatures commonly left by DOS extenders / compilers.
 EXTENDER_MARKS = [

@@ -1,12 +1,12 @@
 # ======================================================================
-# OpenFA pipeline configuration
+# fragile-decomp pipeline configuration
 #
 # This file is committed. It describes the expected toolchain and the
 # reference ISO source, nothing else. No game content lives here.
 # ======================================================================
 
 project:
-  name: OpenFA
+  name: fragile-decomp
 
 paths:
   root: "."                 # relative to repo root

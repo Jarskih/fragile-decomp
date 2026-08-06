@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared helpers for the OpenFA reverse-engineering pipeline.
+"""Shared helpers for the fragile-decomp reverse-engineering pipeline.
 
 Committed code (ours). This module only manipulates paths, hashes, and tool
 output; it never reads game content into anything that could be committed.

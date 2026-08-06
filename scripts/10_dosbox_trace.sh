@@ -35,7 +35,7 @@ fi
 read -r -a DOSBOX_CMD <<< "$(python3 - "$ROOT/scripts" <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1])
-import openfa_lib as lib
+import fragile_decomp_lib as lib
 argv = lib.find_dosbox()
 print(" ".join(argv) if argv else "")
 PY

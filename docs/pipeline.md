@@ -1,4 +1,4 @@
-# OpenFA pipeline
+# fragile-decomp pipeline
 
 The pipeline turns the original CD image into documented, faithful
 understanding of the game's mechanics. Every stage is a script under

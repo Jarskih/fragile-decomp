@@ -77,7 +77,7 @@ while IFS= read -r rel; do
   exe="$ROOT_FS/$rel"
   [[ -f "$exe" ]] || continue
   stem="$(basename "$exe")"
-  proj="openfa_${stem%.*}"
+  proj="fragile_decomp_${stem%.*}"
   echo "==> analyze $rel  (project: $proj)"
   "$GHIDRA_BIN" "$GHIDRA_PROJ" "$proj" \
       -import "$exe" \
@@ -103,8 +103,8 @@ print(hex(d.get('entry_hint',0x14)))")"
 import json,sys
 d=json.load(open('$ROOT/build/reports/flat_analysis.json'))
 print(hex(d.get('code_data',{}).get('code_end',0)))")"
-  echo "==> analyze flat image $FLAT  (project: openfa_FRAGILE_flat)"
-  "$GHIDRA_BIN" "$GHIDRA_PROJ" "openfa_FRAGILE_flat" \
+  echo "==> analyze flat image $FLAT  (project: fragile_decomp_FRAGILE_flat)"
+  "$GHIDRA_BIN" "$GHIDRA_PROJ" "fragile_decomp_FRAGILE_flat" \
       -import "$FLAT" \
       -overwrite \
       -processor x86:LE:32:default -loader BinaryLoader -loader-baseAddr 0x0 \

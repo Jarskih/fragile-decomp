@@ -1,4 +1,4 @@
-# AGENTS.md — Standing instructions for every session working on OpenFA
+# AGENTS.md — Standing instructions for every session working on fragile-decomp
 
 This file is the authoritative list of rules for this repository. Read it before
 doing anything. It is load-bearing: future sessions (human or agent) must follow

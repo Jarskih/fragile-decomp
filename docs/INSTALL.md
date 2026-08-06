@@ -1,4 +1,4 @@
-# OpenFA — Installation manual
+# fragile-decomp — Installation manual
 
 > **Rule 5:** the pipeline scripts never install software. This manual exists
 > so the *developer* can install the required tools. If `make check` reports a

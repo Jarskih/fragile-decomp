@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 OpenFA contributors
+Copyright (c) 2026 fragile-decomp contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,7 @@ SOFTWARE.
 
 ---------------------------------------------------------------------------
 
-NOTICE: This license covers ONLY the OpenFA project's own work (pipeline
+NOTICE: This license covers ONLY the fragile-decomp project's own work (pipeline
 scripts, configuration, and written documentation). It does not extend to the
 original game "Fragile Allegiance" or to any content derived from its
 copyrighted files.

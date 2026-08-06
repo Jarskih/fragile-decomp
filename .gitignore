@@ -1,5 +1,5 @@
 # ======================================================================
-# OpenFA .gitignore
+# fragile-decomp .gitignore
 #
 # RULES (see AGENTS.md):
 #   1. Never commit any original game file.

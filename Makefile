@@ -1,5 +1,5 @@
 # ======================================================================
-# OpenFA pipeline orchestration
+# fragile-decomp pipeline orchestration
 #
 # Every stage writes to build/ (gitignored). None of the game's original
 # content is ever touched by this file or placed outside iso/ + build/.
@@ -12,7 +12,7 @@ SCRIPTS := scripts
         strings dat-survey trace extract-flat flat-analyze names clean help
 
 help:
-	@echo "OpenFA pipeline targets:"
+	@echo "fragile-decomp pipeline targets:"
 	@echo "  make check          verify installed toolchain (never installs)"
 	@echo "  make download       fetch the reference ISO from archive.org (optional)"
 	@echo "  make verify         verify image + record track table"
