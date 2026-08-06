@@ -9,7 +9,7 @@ PY      := python3
 SCRIPTS := scripts
 
 .PHONY: all check download verify extract inventory binary-info disassemble \
-        strings dat-survey trace extract-flat flat-analyze names clean help
+        strings dat-survey trace extract-flat flat-analyze runtime names clean help
 
 help:
 	@echo "fragile-decomp pipeline targets:"
@@ -21,6 +21,9 @@ help:
 	@echo "  make binary-info    classify executables (16-bit vs 32-bit extender)"
 	@echo "  make extract-flat   slice the DOS/4G bound flat image from FRAGILE.EXE"
 	@echo "  make flat-analyze   analyse the flat image (entry/code/data/strings)"
+	@echo "  make runtime        replay the DOS/4G relocation stream over the flat"
+	@echo "                      image; verifies the image is pre-linked at base 0"
+	@echo "                      and emits build/flat/FRAGILE.EXE.runtime.flat"
 	@echo "  make disassemble    Ghidra headless import/analyze/export to build/decomp"
 	@echo "                      (9 DOS programs + the flat DOS/4G image at base 0)"
 	@echo "  make strings        strings sweep over extracted files"
@@ -60,6 +63,9 @@ extract-flat: check-extract-flat inventory
 flat-analyze: check-flat-analyze extract-flat
 	$(PY) $(SCRIPTS)/06_flat_analyze.py
 
+runtime: check-runtime extract-flat
+	$(PY) $(SCRIPTS)/build_runtime.py
+
 disassemble: check-disassemble binary-info flat-analyze
 	./$(SCRIPTS)/07_ghidra_headless.sh
 
@@ -75,7 +81,7 @@ trace: check-trace extract
 names:
 	$(PY) $(SCRIPTS)/11_apply_names.py
 
-all: download verify extract inventory binary-info extract-flat flat-analyze disassemble strings dat-survey trace names
+all: download verify extract inventory binary-info extract-flat flat-analyze runtime disassemble strings dat-survey trace names
 	@echo "Pipeline finished. Reports in build/reports/, decompiled output in build/decomp/, named view in build/named/."
 
 clean:

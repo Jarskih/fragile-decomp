@@ -95,6 +95,8 @@ Stage numbering in `scripts/`:
 - `04` classify executables (16-bit vs 32-bit DOS extender)
 - `05` extract the DOS/4G-bound flat image from FRAGILE.EXE
 - `06` analyse the flat image (entry candidates, code/data/string regions)
+- `06b` (`scripts/build_runtime.py`, `make runtime`) replay the relocation
+  stream over the flat image; verifies the image is pre-linked at base 0
 - `07` Ghidra headless import/analyze/export
 - `08` strings sweep
 - `09` data-file format survey (magic/entropy/header probes)
