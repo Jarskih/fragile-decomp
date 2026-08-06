@@ -14,7 +14,7 @@ The map keys are image-relative addresses for the flat image:
   literals  0xc3f4  -> g_obj_list_sentinel  (renames the raw literal 0xc3f4)
   locals    0x31af4 -> { "iVar3": "slot", ... }  (function-scoped renames)
 Global keys also rename RAM-pointer symbols: iRam0000c3c4 and uRam0000c3c4
-are matched for globals such as 0xc3c4 -> g_galaxy_ptr.
+are matched for globals such as 0xc3c4 -> g_asteroid_ptr.
 Hex keys may be written with or without the 0x prefix, any case. Names must be
 valid C identifiers (the script refuses to apply anything else).
 

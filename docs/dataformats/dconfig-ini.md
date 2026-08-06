@@ -59,7 +59,7 @@ pool (0x8e350..0x8e540) exists anywhere in the flat image, and the Ghidra
 export contains no `s_...` string labels at all. The messages ("Reading
 configuration file...", "Can't find '%s'") are equally unreferenced. Same
 anomaly family as the missing 0xa3xx static tables
-(`docs/mechanics/galaxy-creation.md`, "Open question"): a class of static data
+(`docs/mechanics/asteroid-creation.md`, "Open question"): a class of static data
 that the flat byte image does not connect to its code. So the key→variable
 mapping for `cAsteroidDensity` and friends is unknown until the runtime trace
 or a relocation decode resolves this.
@@ -69,5 +69,5 @@ or a relocation decode resolves this.
 - `build/reports/strings/FRAGILE.EXE.strings.md` — raw string inventory
   (line ~5473 for the scenario keys, ~5488 for the reader messages).
 - `build/reports/inventory.json` — ISO file list (no DCONFIG.INI shipped).
-- `docs/mechanics/galaxy-creation.md` — the parallel "missing static data"
+- `docs/mechanics/asteroid-creation.md` — the parallel "missing static data"
   anomaly.

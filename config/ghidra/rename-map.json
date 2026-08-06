@@ -1,12 +1,12 @@
 {
-  "note": "Curated descriptive names for the decompiled flat DOS/4G image (stage 07). Addresses are image-relative (flat image imported at base 0). These are OUR analysis conclusions: each entry is added as its meaning is established from reading decompiled.c, and the docs/ notes carry the evidence. g_mode_flag gates init in main and toggles behavior across many subsystems; exact semantics TBD. The RNG names (rng_*) and galaxy-gen names (galaxy_*) are documented in docs/mechanics/rng.md and docs/mechanics/galaxy-creation.md. galaxy_create makes a new galaxy node (rolls type/planet-count/seed); galaxy_place finds a free arena grid slot and sets the node position; galaxy_gen_start_values rolls the 10 per-planet starting values into +0x6c; galaxy_setup_start_values copies them from a same-type galaxy, a static table, or an RNG perturbation; galaxy_rank_start_values scores the ten values against the per-slot divisor table and stores the best index at +0x53; obj_list_pop removes and returns the head node of an intrusive list. The locals section renames function-scoped register/stack names (iVar3, sVar1, in_EAX, ...); entries are added only where the meaning is confirmed by disassembly and documented in docs/.",
+  "note": "Curated descriptive names for the decompiled flat DOS/4G image (stage 07). Addresses are image-relative (flat image imported at base 0). These are OUR analysis conclusions: each entry is added as its meaning is established from reading decompiled.c, and the docs/ notes carry the evidence. g_mode_flag gates init in main and toggles behavior across many subsystems; exact semantics TBD. The RNG names (rng_*) and asteroid-gen names (asteroid_*) are documented in docs/mechanics/rng.md and docs/mechanics/asteroid-creation.md. The game itself names these objects asteroids (the universe's colonizable worlds, each with its own surface); earlier drafts called them galaxies, which the game never does. asteroid_create makes a new asteroid node (rolls size class, surface width and seed); asteroid_place finds a free sector-grid slot and sets the node position; asteroid_gen_start_values rolls the 10 per-planet starting values into +0x6c; asteroid_setup_start_values copies them from a same-type asteroid, a static table, or an RNG perturbation; asteroid_rank_start_values scores the ten values against the per-slot divisor table and stores the best index at +0x53; obj_list_pop removes and returns the head node of an intrusive list. The locals section renames function-scoped register/stack names (iVar3, sVar1, in_EAX, ...); entries are added only where the meaning is confirmed by disassembly and documented in docs/.",
   "globals": {
     "0x16d6c": "g_mode_flag",
     "0x36b64": "g_game_state",
     "0x4cd7c": "g_rng_state",
     "0x4cd80": "g_rng_state2",
-    "0x1e460": "g_last_galaxy_seed",
-    "0xc3c4": "g_galaxy_ptr"
+    "0x1e460": "g_last_asteroid_seed",
+    "0xc3c4": "g_asteroid_ptr"
   },
   "functions": {
     "0x5bada": "rng_next",
@@ -14,13 +14,13 @@
     "0x5ba58": "rng_seed_clock",
     "0x5bb0e": "rng_seed",
     "0x5baf2": "rng_mix",
-    "0x30874": "galaxy_gen_surface",
-    "0x320d4": "galaxy_regenerate",
-    "0x11a64": "galaxy_create",
-    "0x11c24": "galaxy_place",
-    "0x127f4": "galaxy_gen_start_values",
-    "0x12894": "galaxy_setup_start_values",
-    "0x31af4": "galaxy_rank_start_values",
+    "0x30874": "asteroid_gen_surface",
+    "0x320d4": "asteroid_regenerate",
+    "0x11a64": "asteroid_create",
+    "0x11c24": "asteroid_place",
+    "0x127f4": "asteroid_gen_start_values",
+    "0x12894": "asteroid_setup_start_values",
+    "0x31af4": "asteroid_rank_start_values",
     "0x212b4": "obj_list_pop"
   },
   "literals": {
@@ -28,7 +28,7 @@
   },
   "locals": {
     "0x11a64": {
-      "iVar3": "galaxy",
+      "iVar3": "asteroid",
       "cVar1": "type_roll",
       "sVar2": "count_roll",
       "uVar4": "seed_rng"
@@ -40,7 +40,7 @@
       "sVar1": "amount_roll"
     },
     "0x31af4": {
-      "in_EAX": "galaxy",
+      "in_EAX": "asteroid",
       "iVar1": "ratio",
       "iVar2": "row",
       "iVar3": "slot",
@@ -49,7 +49,7 @@
       "local_1c": "best_slot"
     },
     "0x320d4": {
-      "in_EAX": "galaxy",
+      "in_EAX": "asteroid",
       "uVar5": "saved_rng",
       "pbVar4": "cleanup_obj",
       "bVar1": "flags",

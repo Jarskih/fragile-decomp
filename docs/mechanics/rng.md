@@ -66,7 +66,7 @@ C3                ret
 So `g_rng_state = (ror16(seed) with low word << 2) + 1`. The `+1` (and the
 `<<2` evenness before it) forces the state **odd**, which is exactly what the
 LCG needs for full period; `rng_seed(0)` yields 1. The reseed value normally
-comes from a caller argument (e.g. the galaxy seed) placed in EAX.
+comes from a caller argument (e.g. the asteroid seed) placed in EAX.
 
 ## The second LCG: `rng_seed_clock` @ 0x5ba58 + `rng_next2` @ 0x5bac2
 
@@ -112,32 +112,32 @@ Used where placement must be repeatable regardless of RNG history:
   3 times.
 Only four call sites exist; one (0x521f0) is in unrecovered gap code.
 
-## Deterministic galaxy generation (snapshot / reseed / restore)
+## Deterministic asteroid generation (snapshot / reseed / restore)
 
-The most important consequence of the design: **the galaxy is generated
-deterministically from a seed without disturbing the live RNG.** Several
-generators in 0x30800..0x32000 follow the same pattern — save `g_rng_state`,
-`rng_seed(galaxy_seed)`, generate, restore:
+The most important consequence of the design: **an asteroid's content is
+generated deterministically from its seed without disturbing the live RNG.**
+Several generators in 0x30800..0x32000 follow the same pattern — save
+`g_rng_state`, `rng_seed(asteroid_seed)`, generate, restore:
 
-- `galaxy_gen_surface` @ 0x30874: reseeds from its seed argument, runs world
+- `asteroid_gen_surface` @ 0x30874: reseeds from its seed argument, runs world
   ticks (`FUN_0005bd04`) over a per-world-type pointer base
   (`DAT_00079b0c[type]`, stride `DAT_0004e77c`), writes a height field
   (values like `0x20000 / (round(f)+0x801)`) via a stream of `rng_next` rolls,
-  then restores the state. Called from galaxy regeneration with the seed
+  then restores the state. Called from asteroid regeneration with the seed
   pushed on the stack.
-- `galaxy_regenerate` @ 0x320d4: re-runs the whole pipeline only when the
-  galaxy's seed field has changed. Verified asm flow:
-  `esi = galaxy*; save g_rng_state;`
+- `asteroid_regenerate` @ 0x320d4: re-runs the whole pipeline only when the
+  asteroid's seed field has changed. Verified asm flow:
+  `esi = asteroid*; save g_rng_state;`
   `if ([0x1e460] == [esi+0x98] && flags set) skip;`
-  `call 0x5da51 x2; call galaxy_gen_surface(seed=[esi+0x98]); call 0x601a4;`
+  `call 0x5da51 x2; call asteroid_gen_surface(seed=[esi+0x98]); call 0x601a4;`
   `call 0x31fe4(esi, 0x24242424); call 0x5ce74(0x20000); call 0x5bd04;`
   `eax=[esi+0x98]; call rng_seed; call 0x30af4/0x310b4/0x315d4/0x31884/`
   `0x31b54/0x31e64; [0x1e460]=[esi+0x98];`
   `restore g_rng_state.`
-  So the whole galaxy depends only on the 32-bit seed at galaxy struct +0x98
-  (named `g_last_galaxy_seed` @ 0x1e460 caches it for the changed-check).
-  The seed is **not** a name hash — see "Where the galaxy seed comes from"
-  below.
+  So the whole asteroid depends only on the 32-bit seed at asteroid struct
+  +0x98 (named `g_last_asteroid_seed` @ 0x1e460 caches it for the
+  changed-check). The seed is **not** a name hash — see "Where the asteroid
+  seed comes from" below.
 - `FUN_000315d4` @ 0x315d4: `rng_seed(param)`, then two `rng_next`-driven
   generation loops (`FUN_00031234`, `FUN_00031384`).
 - `FUN_00031fe4` @ 0x31fe4: `rng_seed()`, spawns **twelve objects in two
@@ -184,43 +184,43 @@ Clustering by address region (call sites per 64 KiB block):
 |--------|-----------|-------|---------|
 | 0x00000..0x10000 | 38 | 96 | main loop, AI, entity update (incl. `FUN_0000c234`, `FUN_00009a34`) |
 | 0x10000..0x20000 | 39 | 97 | combat/weapons/terrain helpers, `FUN_0002d1c4` placement |
-| 0x20000..0x40000 | 17 | 68 | galaxy generation, `FUN_0002f114` encounter placement (state2) |
+| 0x20000..0x40000 | 17 | 68 | asteroid generation, `FUN_0002f114` encounter placement (state2) |
 | 0x40000..0x60000 | 17 | 46 | combat/damage rolls (0x49000..0x54000), init `FUN_0005bd24` |
 
-## Where the galaxy seed comes from (closed)
+## Where the asteroid seed comes from (closed)
 
-The galaxy seed is a pure live-RNG output, taken at the moment the galaxy
+The asteroid seed is a pure live-RNG output, taken at the moment the asteroid
 struct is created. There is no name hash, and the player never enters it.
 
-- The seed field is written in exactly one place, `galaxy_create` @ 0x11a64
-  (galaxy creation, decompiled line 9652):
-  `*(int *)(galaxy + 0x98) = (rng_next(0x10000) << 16) | rng_next(0x10000);`
+- The seed field is written in exactly one place, `asteroid_create` @ 0x11a64
+  (asteroid creation, decompiled line 9652):
+  `*(int *)(asteroid + 0x98) = (rng_next(0x10000) << 16) | rng_next(0x10000);`
   Verified in asm: two `call rng_next` with `eax = 0x10000` (0x11af2,
   0x11afe), first result `shl edx,0x10` (0x11b0d) then `add` with the second
   (0x11b17).
   So the seed is simply the next two 16-bit-scaled rolls of `g_rng_state`.
-- `galaxy_regenerate` reseeds from that field (`rng_seed([esi+0x98])`) before
+- `asteroid_regenerate` reseeds from that field (`rng_seed([esi+0x98])`) before
   re-running the generator chain, then restores the pre-call state, so every
-  galaxy is fully determined by its 32-bit seed.
-- The player's **home galaxy is deliberately deterministic**: a standalone
+  asteroid is fully determined by its 32-bit seed.
+- The player's **home asteroid is deliberately deterministic**: a standalone
   routine at 0x11274 (earlier notes said "inside `FUN_000104c4`" — wrong; no
   `functions.tsv` entry covers 0x11274) runs `rng_seed(0x3039)` (== **12345**,
-  the canonical LCG seed) immediately before calling `galaxy_create`, then
-  copies ten words into `+0x6c`/`+0x15e` and stores the galaxy pointer in
-  `g_galaxy_ptr` (0xc3c4). **Caveat:** the source "tables" at 0xa384/0xa3c0
-  are executable code in the flat (see `docs/mechanics/galaxy-creation.md`,
+  the canonical LCG seed) immediately before calling `asteroid_create`, then
+  copies ten words into `+0x6c`/`+0x15e` and stores the asteroid pointer in
+  `g_asteroid_ptr` (0xc3c4). **Caveat:** the source "tables" at 0xa384/0xa3c0
+  are executable code in the flat (see `docs/mechanics/asteroid-creation.md`,
   "Open question"), so the copied values are unverified until a runtime trace.
-  The race/extra galaxies created by `FUN_0000ff25` @ 0xff25 then roll from
-  the same deterministic stream. Net effect: **the galaxy layout is a fixed
+  The race/extra asteroids created by `FUN_0000ff25` @ 0xff25 then roll from
+  the same deterministic stream. Net effect: **the asteroid layout is a fixed
   universe on every new game**; only the clock-seeded `g_rng_state2` encounter
   stream varies per run.
   (Assumption to confirm at runtime: that the 0x11274 block is on the
   new-game path; it is reached only by indirect call through `FUN_0000ff25`.)
-  Note the main loop can also create galaxies directly: in state 8, `main`
+  Note the main loop can also create asteroids directly: in state 8, `main`
   calls `FUN_0000f544` every tick while `g_mode_flag == 0` — that function is
-  the event/encounter scheduler and creates no galaxies itself — and an
+  the event/encounter scheduler and creates no asteroids itself — and an
   auto-spawn gate (`table[0xa398][[0x16d65]+3*[0x16d64]] > [0xca20]` →
-  `galaxy_create` then `galaxy_place(0x3e8)`); those run after the new-game
+  `asteroid_create` then `asteroid_place(0x3e8)`); those run after the new-game
   seed, so they stay deterministic. (Same caveat applies to the 0xa398 gate
   table: also code in the flat.)
 
@@ -234,10 +234,10 @@ identified:
 |------|-------------|------------|
 | 0x5bae7 | `mov [0x4cd7c],eax` | `rng_next` — the LCG advance |
 | 0x5bb16 | `mov [0x4cd7c],eax` | `rng_seed` — the only seeding site |
-| 0x322eb | `mov [0x4cd7c],edi` | `galaxy_regenerate` — final restore (uVar5) |
+| 0x322eb | `mov [0x4cd7c],edi` | `asteroid_regenerate` — final restore (uVar5) |
 | 0x320bf | `mov [0x4cd7c],esi` | `FUN_00031fe4` — restore (12 decorative objects; identity unconfirmed) |
 | 0x3238b | `mov [0x4cd7c],esi` | `FUN_00032304` — restore |
-| 0x3091a | `mov [0x4cd7c],eax` | unlabeled surface generator after `galaxy_gen_surface` (uses stride `[0x4e77c]`) — restore |
+| 0x3091a | `mov [0x4cd7c],eax` | unlabeled surface generator after `asteroid_gen_surface` (uses stride `[0x4e77c]`) — restore |
 | 0x24b0a | `mov [0x4cd7c],edi` | unlabeled noise/map generator (0x800-byte fill at 0x150f0 + 0x100 rolls) — restore |
 | 0x223f0 | `mov [0x4cd7c],eax` | savegame-load (0x222b4): restores the snapshot `FUN_000220d4` took into 0xc3b8, so a load does not perturb the live stream |
 

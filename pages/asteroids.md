@@ -1,8 +1,8 @@
 ---
-title: Asteroids and how a galaxy is born
+title: Asteroids and how they are born
 ---
 
-# Asteroids and how a galaxy is born
+# Asteroids and how they are born
 
 *Status: written from static analysis of the game's generator. Everything in
 this page is read directly from the code except the per-ore numbers, which come
@@ -11,44 +11,52 @@ claims are marked (?) and no concrete numbers are given for them. For the
 arithmetic of the two dice streams (draws in a range, seeding, the private-copy
 discipline), see [Randomness and determinism](randomness.md).*
 
-The universe is a collection of **galaxies**, and every galaxy is a cluster of
-**asteroids** — the worlds you prospect, mine and colonise. This page gives the
-exact rules by which a galaxy and its asteroids come into being, in the order
-the game performs them.
+The game sets its action in "an ever-changing, randomly generated universe".
+That universe is a map of **sectors** — the "Fragmented Sectors" the game's
+fiction names — and sitting in those sectors are the **asteroids**: the worlds
+you prospect, mine and colonise. The game calls no level of this hierarchy a
+galaxy; that word appears only in the description of a drink. This page gives
+the exact rules by which an asteroid comes into being, in the order the game
+performs them.
 
-## Creation: size, count, seed
+## Creation: size, surface, seed
 
-Creating a galaxy performs the following draws, in this order, all from the
+Creating an asteroid performs the following draws, in this order, all from the
 live deterministic stream:
 
-1. **Size class.** One draw in 0..4, mapped to class **4..8** — five
-   classes, small to large.
-2. **Asteroid count.** One draw of a coin, uniformly 0 or 1, combined as
+1. **Size class.** One draw in 0..4, mapped to class **4..8** — five classes,
+   small to large. The class sets how large the asteroid is drawn on the
+   sector map.
+2. **Surface width.** One draw of a coin, uniformly 0 or 1, combined as
 
    ```
-   count = 2 * (12 + floor((class - 4) * 3 / 5) + coin) + 1
+   width = 2 * (12 + floor((class - 4) * 3 / 5) + coin) + 1
    ```
 
-   The count is therefore always **odd**, and each class permits exactly two
+   The width is therefore always **odd**, and each class permits exactly two
    values, differing by 2, each with probability 1/2:
 
-   | class | count |
+   | class | width |
    |-------|-------|
    | 4, 5  | 25 or 27 |
    | 6, 7  | 27 or 29 |
    | 8     | 29 or 31 |
 
    Classes 4 and 5 share a range, as do 6 and 7; moving up two classes shifts
-   both possible counts up by 2. Note the count is drawn **before** the seed,
-   so it is never a function of the seed.
+   both possible widths by 2. The width is the asteroid's surface size: the
+   number of cells across the middle of its diamond-shaped surface grid
+   (roughly half of width² buildable cells). Size class and surface are
+   therefore linked — a larger class draws a larger blob on the sector map
+   *and* a wider surface. Note the width is drawn **before** the seed, so it
+   is never a function of the seed.
 3. **Seed.** Two draws in 0..65535 packed into one 32-bit number. This is the
-   number the game later rebuilds the galaxy's content from. Nothing
+   number the game later rebuilds the asteroid's content from. Nothing
    player-entered ever goes into it.
 
 All three steps consume the live stream and none of them reads the clock. The
-home galaxy is created immediately after the stream has been reset to its
-fixed starting value, so its class, count and seed — and the ore rolls below —
-are identical on every new game. Galaxies created later draw from wherever the
+home asteroid is created immediately after the stream has been reset to its
+fixed starting value, so its class, width and seed — and the ore rolls below —
+are identical on every new game. Asteroids created later draw from wherever the
 stream has reached; those too are deterministic, since only deterministic
 draws ever advance this stream.
 
@@ -100,28 +108,37 @@ ore while another kind sits higher in absolute units. Ties are resolved to the
 kind with the lower slot.
 
 This is a creation-time decision. The ten amounts and the dominant kind are
-fixed when the galaxy is created.
+fixed when the asteroid is created.
 
-## Rebuilding a galaxy from its seed
+## Rebuilding an asteroid from its seed
 
-When the game needs a galaxy's content again, it rebuilds it from the galaxy's
-32-bit seed. The rebuild runs all of its draws against a **private copy** of
-the deterministic stream and hands the stream back where it was, so it never
-consumes or perturbs live play. Given the same seed, the rebuild is identical.
+When the game needs an asteroid's content again, it rebuilds it from the
+asteroid's 32-bit seed. The rebuild runs all of its draws against a **private
+copy** of the deterministic stream and hands the stream back where it was, so
+it never consumes or perturbs live play. Given the same seed, the rebuild is
+identical.
 
-The rebuild covers the galaxy's **surface** and its **seeded visual backdrop**.
-It does **not** re-run the ore roll: that routine has a single call site, at
-creation, and the rebuild never reaches it. Ore amounts and the dominant kind
-therefore stay as fixed at creation, while the surface and backdrop are pure
-functions of the seed.
+The rebuild covers the asteroid's **surface** and its **seeded visual
+backdrop**. It does **not** re-run the ore roll: that routine has a single call
+site, at creation, and the rebuild never reaches it. Ore amounts and the
+dominant kind therefore stay as fixed at creation, while the surface and
+backdrop are pure functions of the seed.
+
+## Placing an asteroid in a sector
+
+Creation and the ore roll give each asteroid its nature; a later, separate step
+assigns its position. The asteroid is placed in a free slot of the sector
+grid — one asteroid per slot — and asteroids already placed are skipped, so no
+two asteroids ever share a slot. Placement for newly discovered asteroids is
+biased towards the player's own position on the map.
 
 ## What the settings change
 
 Arena size and asteroid density are the two knobs that alter what gets
-generated, and the size classes above are the natural place for them to bite:
-the game's own text describes a small arena as "limited" and packed. The exact
-mapping of the settings onto class, count, ore rolls or the seeded content has
-not yet been traced, so nothing concrete is claimed here (?).
+generated: the game's own text describes a small arena as "limited" and packed.
+The exact mapping of the settings onto the sector map's extent, the surface
+classes above, the ore rolls or the seeded content has not yet been traced, so
+nothing concrete is claimed here (?).
 
 ## Open questions
 
@@ -130,7 +147,8 @@ not yet been traced, so nothing concrete is claimed here (?).
   is (?).
 - Which two kinds are the always-zero pair, and which kind a given asteroid is
   "best at", follow from that table and are likewise pending (?).
-- How arena size and asteroid density steer class, count, ore rolls and seeded
-  content (?).
-- Nothing in the generation described here assigns the asteroids coordinates;
-  whether they are *positioned* by a later, separate pass is unresolved (?).
+- How arena size and asteroid density steer the sector map's extent, the
+  surface classes, ore rolls and seeded content (?).
+- Whether the slot grid of the placement step is the same as the map of
+  sectors the game draws and names (the two are the same size in the code, but
+  the identity is not yet confirmed) (?).

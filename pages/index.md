@@ -30,8 +30,8 @@ project.
 
 - [Randomness and determinism](randomness.md) — the two streams of chance,
   how the universe is generated, and what a reimplementation must reproduce.
-- [Asteroids and how a galaxy is born](asteroids.md) — how a galaxy's cluster
-  of asteroids is generated: their numbers, their ore, and what stays
+- [Asteroids and how they are born](asteroids.md) — how the asteroids that
+  sit in the sectors are generated: their surfaces, their ore, and what stays
   reproducible.
 
 The technical analysis (addresses, disassembly references, open questions) is
