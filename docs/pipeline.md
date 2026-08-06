@@ -21,6 +21,8 @@ iso/FragileAllegiance.iso        (gitignored, provided by you or `make download`
         ▼
 06_flat_analyze.py               build/reports/flat_analysis.* (entry/regions)
         ▼
+build_runtime.py                 build/flat/FRAGILE.EXE.runtime.flat (loader view)
+        ▼
 07_ghidra_headless.sh            build/decomp/ (Ghidra projects + exported C/asm)
         ▼
 08_strings.py                    build/reports/strings/    (per-file string dumps)
@@ -70,17 +72,27 @@ mode** or **32-bit protected mode** — this decides how we configure Ghidra.
 FRAGILE.EXE is DOS/4G-bound: an MZ stub plus a relocation page/offset table and
 record stream, then a flat 32-bit image. Stage 05 locates the structural
 anchors (`unbound` signature, page table at 0x3B8BE, offset table at 0x3BC70,
-record stream at 0x3C020), parses the record stream with the verified group
-grammar (all groups 1..233 — every 07-record verified against the flat image),
-and slices the image (file 0x8A760..EOF) into
+record stream at 0x3C020), parses the record stream with the verified grammar
+(all streams 1..234 — 37,311 records, every 07-record verified against the
+flat image), and slices the image (file 0x8A760..EOF) into
 `build/flat/FRAGILE.EXE.flat`. See `docs/dataformats/dos4gw-bound.md`.
 
 ### 06 — flat analysis
 Maps the flat image's regions from printable-ASCII density (code
-0x0..0x8D000, binary data 0x8D000..0x92000, resource-file table 0x92000..EOF),
-finds the entry candidates (0x04 int3-trap NOP slide, 0x14 push6 prologue),
-and counts pointer dwords into the string region. Output:
-`build/reports/flat_analysis.*`.
+0x0..0x8D000, binary data 0x8D000..0x92000, resource-file table
+0x92000..0x97000, relocated code-pointer tables 0x97000..0xE9000, last-page
+tables 0xE9000..EOF), finds the entry candidates (0x04 int3-trap NOP slide,
+0x14 push6 prologue), and counts pointer dwords into the string region.
+Output: `build/reports/flat_analysis.*`.
+
+### 06b — runtime image build
+Replays the relocation record stream the way the DOS/4G loader would over the
+stage-05 slice. Every in-buffer field is pre-linked (already equals its
+runtime value), so the replay must be a no-op; the stage fails loudly on any
+mismatch and emits `build/flat/FRAGILE.EXE.runtime.flat`, byte-identical to
+the static slice. The 7 `02`-records (DS data-selector setup) are inventoried
+and left at their static placeholder. Output:
+`build/reports/runtime_build.*`. `make runtime`.
 
 ### 07 — Ghidra headless
 Runs `analyzeHeadless` once per executable: import, auto-analysis, then the
@@ -109,8 +121,9 @@ Generates a DOSBox-X config (template in `config/dosbox/`) that mounts
 With `--trace` it passes `-log-int21 -log-fileio`, capturing INT 21h and
 file-open activity plus the disc-check behavior into `build/traces/` on any
 DOSBox-X build. A runtime load-base trace (from a custom `--enable-debug`
-curses build) that would validate the relocation records is deferred; the
-static decompilation route is primary (see `docs/dataformats/dos4gw-bound.md`).
+curses build) that would observe the runtime selector values of the 7
+`02`-records is deferred; the static decompilation route is primary (see
+`docs/dataformats/dos4gw-bound.md`).
 
 ### 11 — apply names
 Ghidra's export in `build/decomp/` is treated as read-only. This stage copies

@@ -46,9 +46,9 @@ iso:
 #   required: false => the stage using it degrades gracefully when absent
 #   external: true  => not on PATH; located via GHIDRA_HOME / manual config
 # Stage names: download verify extract inventory binary-info extract-flat
-#              flat-analyze disassemble strings dat-survey trace names
+#              flat-analyze runtime disassemble strings dat-survey trace names
 tools:
-  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, extract-flat, flat-analyze, disassemble, strings, dat-survey, trace, names] }
+  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, extract-flat, flat-analyze, runtime, disassemble, strings, dat-survey, trace, names] }
   curl:      { min: "7.0",  version_flag: "--version",  required: true,  stages: [download] }
   7z:        { min: "16.0", version_flag: "i",          required: true,  stages: [extract] }
   bsdtar:    { min: "3.0",  version_flag: "--version",  required: true,  stages: [extract] }
