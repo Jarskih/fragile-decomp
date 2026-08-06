@@ -56,6 +56,11 @@ Nothing derived from the game's copyrighted files may ever be committed.
    correct the affected documentation right away, in the same session, instead
    of deferring the fix. Never let a stale note survive an overturned finding.
 
+8. **No commits to master.**
+   All work lands on a feature branch (e.g. `feature/<topic>`) and reaches
+   master only through a review. The agent creates and pushes the branch and
+   opens the pull request; merging happens only after the developer's review.
+
 ## What is committed vs. what is not
 
 | Committed (ours)                        | Never committed (theirs/derived)                |
@@ -141,6 +146,17 @@ Rules that follow from this:
   That is the authority for UI labels and terminology. Other language packs
   (e.g. `FRANCAIS.*`) are ignored — our content is English only. No OCR of a
   game manual is needed or performed.
+- Functional docs name objects only as the game names them. When the game gives
+  no name to something, the page says so plainly rather than inventing a label.
+- Within a page, every claim appears once, in its strongest supported form; do
+  not restate the same thing twice in different words.
+- Functional docs are honest about uncertainty: claims that are unverified,
+  inferred, or still to be researched are marked as such (a status line, "?",
+  or an explicit "not yet confirmed" note) and never written as established
+  fact.
+- Functional docs form a cross-linked whole: each page covers **one** topic or
+  mechanic, and content that another page already covers is linked to, not
+  repeated. Prefer a link to an existing page over re-explaining its content.
 - If a technical and a functional doc describe the same mechanic, they live in
   different files (or different sections) so that the technical detail never
   leaks into the functional text.
