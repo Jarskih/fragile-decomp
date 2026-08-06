@@ -70,8 +70,9 @@ mode** or **32-bit protected mode** — this decides how we configure Ghidra.
 FRAGILE.EXE is DOS/4G-bound: an MZ stub plus a relocation page/offset table and
 record stream, then a flat 32-bit image. Stage 05 locates the structural
 anchors (`unbound` signature, page table at 0x3B8BE, offset table at 0x3BC70,
-record stream at 0x3C020), parses the record stream as far as the group-92
-encoding change, and slices the image (file 0x8A760..EOF) into
+record stream at 0x3C020), parses the record stream with the verified group
+grammar (all groups 1..233 — every 07-record verified against the flat image),
+and slices the image (file 0x8A760..EOF) into
 `build/flat/FRAGILE.EXE.flat`. See `docs/dataformats/dos4gw-bound.md`.
 
 ### 06 — flat analysis

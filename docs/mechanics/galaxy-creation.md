@@ -49,7 +49,7 @@ Verified asm flow:
 | +0x51  | 1 | flag byte (cleared for the home galaxy) |
 | +0x54, +0x58 | 4×2 | position/scale pair (written by `FUN_00011ba4`) |
 | +0x6c | 2×10 | starting-planet value set; written by the 0x11274 block (10 words) and by `galaxy_gen_start_values` / `galaxy_setup_start_values` |
-| +0x15e | 2×10 | second starting-planet value set; written by the 0x11274 block only, at +0x15e+2·(i+1) for i=0..9 (lands at +0x160..+0x176 plus one word at +0x1de) |
+| +0x15e | 2×10 | second starting-planet value set; written by the 0x11274 block only, at +0x15e+2·(i+1) for i=0..9 (lands at +0x160..+0x172) |
 | +0x98  | 4 | **the galaxy seed** — everything else derives from it |
 | +0x9c  | 2 | planet count (odd, 25..31) |
 | +0xa5  | 1 | tick-down counter (decremented in main) |
@@ -77,7 +77,7 @@ Verified asm flow:
   - copy loop i = 0..9 (ten iterations, `cmp eax,0x9; jle`): `[+0x6c+2i]` ←
     word `[i*2+0xa384]`, and `[+0x15e+2*(i+1)]` ← word `[i*2+0xa3c0]` (the
     second write uses `edx` already bumped past the +0x6c slot, so the +0x15e
-    set lands at +0x160..+0x176 for i=0..8 and one word at +0x1de for i=9);
+    set lands at +0x160..+0x172);
   - `galaxy_rank_start_values` — rank the ten values;
   - `g_galaxy_ptr = galaxy` (`[0xc3c4]`).
   The fixed seed makes the home galaxy's layout reproducible every new game.
@@ -85,20 +85,30 @@ Verified asm flow:
   **not exist as data in the flat image** — those addresses hold executable
   code (Ghidra's `FUN_0000a3b4` @ 0xa3b4 starts inside the second table), and
   no relocation record targets them. See "Open question" below.
-- **Race galaxies** — `FUN_0000ff25` @ 0xff25 creates the per-race galaxies:
-  each `galaxy_create` call is followed by `galaxy_place(<size code>)` (0xe4,
-  0x130, 0x12f, 0x12e, 0x16e …) and `FUN_00023054(<name index>)` (0x9/0xa/0xb
-  for the tagged races), with bits 0x2/0x4/0x8 OR-ed into the byte `DAT_00016d69`.
+- **Race galaxies** — `FUN_0000ff25` @ 0xff25 creates galaxies in a loop (one
+  per pass): the first pass (`esi==1`) makes a home-style galaxy with
+  `galaxy_place(0xf1)`, `[+0x51]=0`, the +0x15e copy from 0xa384 (if
+  `[0x16d5e]!=0`), and `g_galaxy_ptr` set; later passes place a
+  caller-supplied size (`edi`). The
+  loop runs until the pass counter reaches `[0x16d70]+1`, then the routine
+  creates **eight** fixed galaxies, each `galaxy_create` then
+  `galaxy_place(<size>)`: two untagged (`0x16e`, `0xe4`), then six tagged ones
+  with sizes 0x130/0x12f/0x12e/0x12d/0x150/0xca, name indices
+  0xa/0xb/0x9/0xc/0xd/0xe and bits 0x4/0x8/0x2/0x10/0x20/0x40 OR-ed into the
+  byte `DAT_00016d69`; only the tagged ones call `FUN_00023054(<name index>)`.
   **No direct callers** — reached only by indirect dispatch, so the new-game
   entry point is assumed here (confirm at runtime).
 - **Main loop (state 8, in-game)** — `main` @ 0x14:
-  - `FUN_0000f544` is called every tick while `g_mode_flag == 0` and creates
-    7 more galaxies (via `galaxy_create`);
-  - an **auto-spawn gate** at 0x3d3..0x422: if `[0x16d60]==0`, `[0xcd98]&7==0`,
-    and `table[0xa398][ [0x16d65] + 3*[0x16d64] ] > [0xca20]`, it calls
+  - `FUN_0000f544` is called every tick while `g_mode_flag == 0`; it is the
+    event/encounter scheduler and **creates no galaxies itself**;
+  - an **auto-spawn gate** at 0x3ca..0x422: if `[0x16d6c]==0` (i.e.
+    `g_mode_flag==0`), `[0x16d60]==0`, `[0xcd98]&7==0`, and
+    `table[0xa398][ [0x16d65] + 3*[0x16d64] ] > [0xca20]`, it calls
     `galaxy_create` then `galaxy_place(0x3e8)` — new galaxies keep appearing as
     the game progresses (counter [0xca20] and the per-galaxy count live in the
     two byte counters [0x16d64]/[0x16d65] indexing the 3-wide table).
+    `galaxy_place(0x3e8)` is the "spawn near the player" placement: it searches
+    the occupancy grid around the player's cell `[0xcdb0]/[0xcdb4]`.
 - Other creation callers in `FUN_00013844` (0x13941..0x13ad5) follow the same
   shape.
 
@@ -135,8 +145,9 @@ stream.
   constant **12345** first. So **the galaxy layout is a fixed universe on
   every new game**.
 - The only clock-seeded stream is `g_rng_state2` (via `rng_seed_clock` in
-  `FUN_0005bd24`), consumed solely by the encounter-placement generator
-  `FUN_0002f114` — battles vary per run, the universe does not.
+  `FUN_0005bd24`), consumed by the encounter-placement generator `FUN_0002f114`
+  (13 of its 19 call sites; the other six sit in unrecovered gap code — see
+  `docs/mechanics/rng.md`) — battles vary per run, the universe does not.
 - Confirmed at runtime still pending: that the 0x11274 home-galaxy block (via
   `FUN_0000ff25`'s indirect dispatch) runs before any in-game galaxy creation.
 

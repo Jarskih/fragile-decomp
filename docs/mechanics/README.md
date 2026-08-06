@@ -1,8 +1,8 @@
 # mechanics — notes on the original game's exact mechanics
 
 This directory collects **our own written analysis** of how the game works, so
-the modern rebuild can be as faithful as possible. This is the primary
-deliverable of the decompilation phase.
+that a faithful reimplementation can be built from the documentation alone.
+This is the primary deliverable of the decompilation phase.
 
 ## What goes here
 

@@ -6,10 +6,13 @@ it exactly.
 
 ## Project goal
 
-Recreate the 1996 DOS game **Fragile Allegiance** (Gremlin Interactive / Cajji
-Software). The rebuilt game will use a modern framework but the original art.
-The long first phase is **decompilation**: we reverse-engineer the original
-game's exact mechanics to be as faithful as possible.
+This repository's scope is the **decompilation and analysis** of the 1996 DOS
+game **Fragile Allegiance** (Gremlin Interactive / Cajji Software). Our aim is
+to understand the game's mechanics — **technically and, most importantly,
+functionally** — well enough that the documented knowledge alone is sufficient
+to build a faithful reimplementation of the game. The reimplementation itself
+is out of scope here and belongs in a separate repository; this repository
+serves as its input. No game code is written or designed in this repository.
 
 The original game binary is copyright-protected. Everything we commit must be
 unambiguously our own work: scripts, configuration, and written analysis notes.
@@ -105,21 +108,20 @@ Our documentation is written in two distinct tiers, because the audience for
 it is twofold:
 
 1. **Technical descriptions** — the working analysis used for further reverse
-   engineering and for the rebuild. These are the existing notes in
-   `docs/mechanics/` and `docs/dataformats/`. They are allowed to (and
-   expected to) reference addresses, variable names, register conventions,
-   asm-level facts, and open questions. They are the source of truth; they
-   are primarily for the agent and the developer to consult while
-   decompiling.
+   engineering. These are the existing notes in `docs/mechanics/` and
+   `docs/dataformats/`. They are allowed to (and expected to) reference
+   addresses, variable names, register conventions, asm-level facts, and open
+   questions. They are the source of truth; they are primarily for the agent
+   and the developer to consult while decompiling.
 
-2. **Functional descriptions** — player-oriented explanations of how the game
-   works, written for a gamer who wants to understand the mechanics in depth
-   but has no interest in (and should not be burdened with) the internals:
-   no variable names, no pointer/hex addresses, no Ghidra or disassembly
-   references. They describe behaviour and mechanics ("how fast do ships
-   accelerate", "what determines planet yields") in the language of the game,
-   not of the binary. These are the docs meant for public publication
-   (e.g. GitHub Pages).
+2. **Functional descriptions** — explanations of how the game works, written
+   in the language of the game, not of the binary: no variable names, no
+   pointer/hex addresses, no Ghidra or disassembly references. They describe
+   behaviour and mechanics ("how fast do ships accelerate", "what determines
+   planet yields") completely enough that someone reading them alone could
+   reimplement that mechanic faithfully. **These are the primary deliverable
+   of this repository** — the functional knowledge is what the reimplementation
+   repository will be built from.
 
 Rules that follow from this:
 
@@ -133,4 +135,6 @@ Rules that follow from this:
   contain no derived game content.
 - If a technical and a functional doc describe the same mechanic, they live in
   different files (or different sections) so that the technical detail never
-  leaks into the player-facing text.
+  leaks into the functional text.
+- A mechanic is not "done" until it has a functional description that stands
+  on its own.

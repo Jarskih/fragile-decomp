@@ -10,8 +10,8 @@ The game has **two separate 32-bit LCGs** with the same multiplier, plus one
 
 | name | addr | state | seeded by | used for |
 |------|------|-------|-----------|----------|
-| `rng_next`  | 0x5bada | `g_rng_state`  (0x4cd7c) | `rng_seed` (0x5bb0e) | the general game RNG (~450 call sites) |
-| `rng_next2` | 0x5bac2 | `g_rng_state2` (0x4cd80) | `rng_seed_clock` (0x5ba58) | encounter / object-placement rolls only (FUN_0002f114) |
+| `rng_next`  | 0x5bada | `g_rng_state`  (0x4cd7c) | `rng_seed` (0x5bb0e) | the general game RNG (448 call sites) |
+| `rng_next2` | 0x5bac2 | `g_rng_state2` (0x4cd80) | `rng_seed_clock` (0x5ba58) | encounter / object-placement rolls — 19 call sites, 13 in FUN_0002f114, 6 in unrecovered gap code |
 | `rng_mix`   | 0x5baf2 | none (stateless) | — | deterministic spawn positions, table lookups |
 
 Both LCGs are the classic *Numerical Recipes* generator with multiplier
@@ -46,8 +46,8 @@ Calling convention (verified at every call site): **range arrives in EAX**,
 the result is returned in EAX; all other registers are preserved (EDX is
 pushed/popped). `result ∈ [0, range)` for every `range ≥ 1`. This is the
 standard multiply-high uniform reduction — slightly biased, but that is the
-game's exact behaviour, so the rebuild must reproduce it bit-for-bit if it
-wants identical sequences.
+game's exact behaviour, so a reimplementation must reproduce it bit-for-bit if
+it wants identical sequences.
 
 The decompiled view models the ABI badly (`__fastcall(param_1=ECX,
 param_2=EDX)` returning `CONCAT44(param_2, high32)`) because EAX is an implicit
@@ -75,17 +75,22 @@ comes from a caller argument (e.g. the galaxy seed) placed in EAX.
 
 - two reads of the PIT timer channel 0 (port 0x40) as a 16-bit counter;
 - DOS get-system-time (INT 21h AH=2Ch): `(hour*60+minute)*6000 + second*100 +
-  hundredths`;
+  hundredths`, added with carry to the PIT value;
+- DOS get-date (INT 21h AH=2Ah): day-of-year added to the low word, year added
+  to the high word (with carry);
 - the low word is forced odd (`& 0xfffd | 1`).
 
 `rng_next2` is byte-for-byte the same shape as `rng_next` but on
-`g_rng_state2`. Its **only** consumer is `FUN_0002f114` (0x2f114, 859 B): the
+`g_rng_state2`. Its main consumer is `FUN_0002f114` (0x2f114, 859 B): the
 encounter/object-placement generator, which rolls positions/offsets for a slot
 counter `iRam0001e47c` — offsets of ±0x300/±0xa00, even-aligned fields
 (`& 0xfffffffe`), and a 0x80000-space coordinate — writing into the tables at
-0x5e5e4/0x5e60c/0x5e5bc/0x5e144/0x5e594/0x5e16c. So the game keeps a separate,
-clock-seeded stream for procedural placement so it cannot perturb — or be
-perturbed by — the main gameplay stream.
+0x5e5e4/0x5e60c/0x5e5bc/0x5e144/0x5e594/0x5e16c. 13 of the 19 `call rng_next2`
+sites are inside `FUN_0002f114`; the other six (0x22d19, 0x369f6, 0x36a2d,
+0x36ae4, 0x36b4c, 0x438b8) sit in code Ghidra did not recover as functions
+(`functions.tsv` gaps), so the second stream's exact role is not fully closed.
+So the game keeps a separate, clock-seeded stream for procedural placement so
+it cannot perturb — or be perturbed by — the main gameplay stream.
 
 ## Deterministic mixer: `rng_mix` @ 0x5baf2
 
@@ -105,6 +110,7 @@ Used where placement must be repeatable regardless of RNG history:
 - `FUN_00054864` (0x54864): picks a table index whose `[min,max]` range
   (table at 0x37c22, 0x14-byte records) contains a mixed value, retrying up to
   3 times.
+Only four call sites exist; one (0x521f0) is in unrecovered gap code.
 
 ## Deterministic galaxy generation (snapshot / reseed / restore)
 
@@ -188,7 +194,8 @@ struct is created. There is no name hash, and the player never enters it.
   (galaxy creation, decompiled line 9652):
   `*(int *)(galaxy + 0x98) = (rng_next(0x10000) << 16) | rng_next(0x10000);`
   Verified in asm: two `call rng_next` with `eax = 0x10000` (0x11af2,
-  0x11afe), first result `shl edx,0x10` (0x11b0d) then `or` with the second.
+  0x11afe), first result `shl edx,0x10` (0x11b0d) then `add` with the second
+  (0x11b17).
   So the seed is simply the next two 16-bit-scaled rolls of `g_rng_state`.
 - `galaxy_regenerate` reseeds from that field (`rng_seed([esi+0x98])`) before
   re-running the generator chain, then restores the pre-call state, so every
@@ -207,12 +214,13 @@ struct is created. There is no name hash, and the player never enters it.
   stream varies per run.
   (Assumption to confirm at runtime: that the 0x11274 block is on the
   new-game path; it is reached only by indirect call through `FUN_0000ff25`.)
-  Note the main loop can also create galaxies directly: in state 8,
-  `main` calls `FUN_0000f544` (7 creations) and an auto-spawn gate
-  (`table[0xa398][[0x16d65]+3*[0x16d64]] > [0xca20]` → `galaxy_create` then
-  `galaxy_place(0x3e8)`); those run after the new-game seed, so they stay
-  deterministic. (Same caveat applies to the 0xa398 gate table: also code in
-  the flat.)
+  Note the main loop can also create galaxies directly: in state 8, `main`
+  calls `FUN_0000f544` every tick while `g_mode_flag == 0` — that function is
+  the event/encounter scheduler and creates no galaxies itself — and an
+  auto-spawn gate (`table[0xa398][[0x16d65]+3*[0x16d64]] > [0xca20]` →
+  `galaxy_create` then `galaxy_place(0x3e8)`); those run after the new-game
+  seed, so they stay deterministic. (Same caveat applies to the 0xa398 gate
+  table: also code in the flat.)
 
 ## The complete `g_rng_state` write-site census
 
