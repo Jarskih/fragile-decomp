@@ -28,7 +28,8 @@ This site publishes only the functional descriptions — the game's mechanics
 written in plain, in-game language. They are the primary deliverable of the
 project.
 
-- *None published yet — first write-up in progress.*
+- [Randomness and determinism](randomness.md) — the two streams of chance,
+  how the universe is generated, and what a reimplementation must reproduce.
 
 The technical analysis (addresses, disassembly references, open questions) is
 intentionally **not** published here; it stays in the repository for
