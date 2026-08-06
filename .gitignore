@@ -4,12 +4,15 @@
 # RULES (see AGENTS.md):
 #   1. Never commit any original game file.
 #   2. Never commit any decompiled/disassembled output.
-#   3. Everything derived from the game lives under build/ and iso/.
+#   3. Everything derived from the game lives under build/; original media
+#      lives only under iso/.
 #
 # This file structurally enforces rules 1 and 2.
 # ======================================================================
 
 # --- Rule 1: original game media / extracted game content -------------
+# iso/ holds the reference ISO (and anything else original that must
+# never be committed). Mined for analysis only.
 /iso/
 /build/
 

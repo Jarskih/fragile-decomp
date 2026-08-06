@@ -22,8 +22,8 @@ Nothing derived from the game's copyrighted files may ever be committed.
 
 1. **Never commit original game files.**
    No ISO, no extracted files, no executables, no data files, no artwork, no
-   audio. The gitignored `iso/` and `build/` trees are the only places original
-   content may exist, and they are never `git add`ed.
+   audio, no manual. The gitignored `iso/` and `build/` trees are the
+   only places original content may exist, and they are never `git add`ed.
 
 2. **Never commit decompiled files.**
    Disassembly, decompiled C, Ghidra projects, symbol dumps, string dumps, and
@@ -133,6 +133,11 @@ Rules that follow from this:
   that only makes sense inside the decompilation project.
 - Nothing from `build/` is ever published; functional docs are plain prose and
   contain no derived game content.
+- Functional docs use the game's own vocabulary, mined from the game's US-English
+  text resources (the `_TEXT/AMERICAN.TXT`/`.SCR`/`.CDB` files under `build/iso/`).
+  That is the authority for UI labels and terminology. Other language packs
+  (e.g. `FRANCAIS.*`) are ignored — our content is English only. No OCR of a
+  game manual is needed or performed.
 - If a technical and a functional doc describe the same mechanic, they live in
   different files (or different sections) so that the technical detail never
   leaks into the functional text.

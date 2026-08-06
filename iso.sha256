@@ -1,4 +1,4 @@
-# OpenFA ISO provenance manifest (committed for reproducibility)
+# fragile-decomp ISO provenance manifest (committed for reproducibility)
 # Contains hashes and file names only — never any game content.
 #
 # Run `python3 scripts/00_download_iso.py --record-hash` after the first
