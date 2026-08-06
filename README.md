@@ -36,7 +36,9 @@ The notes are the deliverable, in two tiers. Technical notes (`docs/mechanics/`,
 engineering. **Functional write-ups describe the game's mechanics in plain
 language** — how the economy, diplomacy, AI, blueprints, and combat behave —
 completely enough that someone could reimplement them faithfully from the
-documentation alone.
+documentation alone. Functional write-ups live in `pages/` and are published on
+GitHub Pages (<https://jarige.github.io/fragile-decomp/>); technical notes are
+never published.
 
 ## Getting started
 
@@ -68,7 +70,9 @@ Makefile             pipeline orchestration
 iso.sha256           provenance manifest (hashes of the expected image)
 scripts/             00..11 pipeline stages + check_env.py
 config/              rules.yaml, Ghidra scripts, DOSBox config template
-docs/                INSTALL.md, pipeline.md, mechanics/, dataformats/
+docs/                technical analysis (mechanics/, dataformats/) + INSTALL/pipeline
+pages/               functional write-ups, published to GitHub Pages
+.github/             GitHub Actions workflow for Pages deployment
 iso/                 (gitignored) your copy of the original image
 build/               (gitignored) all derived artifacts
 ```

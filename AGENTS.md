@@ -128,6 +128,9 @@ Rules that follow from this:
 - When we document a mechanic, the technical analysis lands in
   `docs/mechanics/` (or `docs/dataformats/`) first; a functional write-up for
   the same mechanic is a separate, later step, written from that analysis.
+- Functional docs live in `pages/`, which is published to GitHub Pages (via
+  `.github/workflows/pages.yml`). `docs/` is internal and never published —
+  this is a structural guarantee, not a publishing discipline.
 - Functional docs must be self-contained prose: no `FUN_0000…`, no `0x…`,
   no struct offsets, no register names. Sanitise away any internal detail
   that only makes sense inside the decompilation project.
