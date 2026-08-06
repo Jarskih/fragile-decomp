@@ -7,6 +7,11 @@ the documented knowledge alone is sufficient to build a faithful
 reimplementation of the game. The reimplementation itself is out of scope
 here; this repository serves as its input.
 
+> **Vibecoded.** This project is written with heavy AI assistance: an agent
+> performs most of the analysis, scripting, and documentation. Conclusions are
+> checked against the binary where possible, but treat everything with
+> appropriate skepticism and verify before relying on it.
+
 > **Legal note.** The original game is copyright-protected. This repository
 > contains **only our own work**: pipeline scripts, configuration, and written
 > analysis notes. No original game files and no decompiled output are ever
