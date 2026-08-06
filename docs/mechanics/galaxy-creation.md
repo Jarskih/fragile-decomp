@@ -1,10 +1,12 @@
 # Galaxy creation
 
 Status: creation routine and regeneration chain confirmed (static
-disassembly). The home-galaxy block at 0x11274 is confirmed but the values it
-copies are NOT in the flat (see "Open question" below). The one indirect-call
-assumption (the new-game path reaching the home-galaxy block) is flagged below
-and awaits runtime confirmation.
+disassembly), including the `galaxy_gen_start_values` → `galaxy_rank_start_values`
+(+0x53) → `0x1e4dc` scale-row → `FUN_000319c4` tail of the chain. The
+home-galaxy block at 0x11274 is confirmed but the values it copies are NOT in
+the flat (see "Open question" below). The one indirect-call assumption (the
+new-game path reaching the home-galaxy block) is flagged below and awaits
+runtime confirmation.
 Source: disassembly (`build/flat/FRAGILE.EXE.flat` + `build/named/.../decompiled.c`)
 
 ## Overview
@@ -47,6 +49,7 @@ Verified asm flow:
 |--------|------|---------|
 | +0x50  | 1 | galaxy type, 4..8 (roll + 4) |
 | +0x51  | 1 | flag byte (cleared for the home galaxy) |
+| +0x53  | 1 | ranked best-value slot index 0..9 (set by `galaxy_rank_start_values`; selects the 0x1e4dc scale row) |
 | +0x54, +0x58 | 4×2 | position/scale pair (written by `FUN_00011ba4`) |
 | +0x6c | 2×10 | starting-planet value set; written by the 0x11274 block (10 words) and by `galaxy_gen_start_values` / `galaxy_setup_start_values` |
 | +0x15e | 2×10 | second starting-planet value set; written by the 0x11274 block only, at +0x15e+2·(i+1) for i=0..9 (lands at +0x160..+0x172) |
@@ -118,30 +121,96 @@ Rebuilds a galaxy's content from its seed. Verified flow:
 
 ```
 save g_rng_state
-if (g_last_galaxy_seed != galaxy->+0x98 || FUN_0001e464 == 0 || iRam0001e470 == 0)
+if (g_last_galaxy_seed != galaxy->+0x98 || [0x1e468] == 0 || [0x1e470] == 0)
+    free([0x1e468]); free([0x1e470])          # old buffers (0x5da51)
     galaxy_gen_surface(galaxy->+0x98)         # surface from seed
-    FUN_00031fe4()                            # 12 decorative objects, 2 rings
-                                              #   of 6 (+0x140 spacing; identity
-                                              #   unconfirmed — not "moons")
-    DAT_00061964 = FUN_0005ce74()             # a generation count; 0 → fatal
+    FUN_00031fe4(galaxy, 0x24242424)          # one object, 12 slot-passes
+                                              #   (two loops of 6; a word field
+                                              #   +0xe advances +0x140 per pass,
+                                              #   a 4-bit field +0x1c gets
+                                              #   (i&3)+4; each pass calls the
+                                              #   render dispatch 0x641f4).
+                                              #   Identity unconfirmed.
+    [0x61964] = malloc(0x20000)               # scratch workspace; 0 → fatal
     rng_seed(galaxy->+0x98)                   # reseed from galaxy seed
-    FUN_00030af4, 0x310b4, 0x315d4, 0x31884,
-    0x31b54, 0x31e64                          # content chain (continuous stream)
+    FUN_00030af4(galaxy), 0x310b4,            # content chain; every step is
+    0x315d4(galaxy), 0x31884, 0x31b54,        #   followed by hook call 0x601a4
+    free([0x61964]), 0x31e64
     g_last_galaxy_seed = galaxy->+0x98        # remember done state
-    FUN_0001e464 = galaxy->+0x9c              # remember planet count
-rng_seed(galaxy->+0x98)                       # home-planet placement
-FUN_000319c4()
+    [0x1e464] = galaxy->+0x9c                 # remember planet count
+# always (also when the guard short-circuits to 0x32223):
+[0x1e450] = alloc_child_object(0x5e6c4); [0x1e454] = alloc_child_object()
+rng_seed(galaxy->+0x98)                       # reseed (placement stream)
+idx = galaxy->+0x53                           # ranked best-value slot (0..9)
+FUN_000319c4(row[idx] @ 0x1e4dc)              # a,b,c = the row's 3 bytes
 restore g_rng_state
 ```
+
+`FUN_00031fe4` @ 0x31fe4: saves `g_rng_state`, allocates one object from the
+`0x51970` free list via `0x66547` (zeroed, `[+0x18]` = a fresh `[0x1e444]`
+buffer, byte +0x1 |= 0x10), reseeds the RNG from `galaxy->+0x98`, then runs the
+two 6-pass loops above (`or [obj],0x81` at the end) and **restores the saved
+RNG state** — a third RNG-sandwich in the regeneration path (besides the guard
+and the final `FUN_000319c4` step).
+
+`galaxy_rank_start_values` @ 0x31af4 sets `galaxy->+0x53` to the slot index
+(0..9) with the largest `(start_value << 8) / hi_slot` ratio (`hi_slot` =
+`word [0xa3d8 + 0xe*i]`, the same table `galaxy_gen_start_values` reads; see
+next section). `+0x53` is therefore the index of the galaxy's **best-value
+asteroid slot** and is what selects the scale row at 0x1e4dc.
 
 Every generator is deterministic given the seed, and the pre-call `g_rng_state`
 is restored, so regeneration neither depends on nor perturbs the live game
 stream.
 
+## The 10-slot value table: `galaxy_gen_start_values` @ 0x127f4
+
+Called from `galaxy_create` (its only call site, 0x11b98). For each slot
+`i = 0..9` it reads a 14-byte row at `0xa3d4 + 0xe*i` (`p`@+0, `lo`@+2, `hi`@+4)
+and rolls the slot's starting value at `galaxy->+0x6c + 2*i`:
+
+```
+roll = rng_next(100)
+if roll < p:              value = lo + rng_next(hi - lo + 1)     # rich
+elif i < 8:               value = 1 + rng_next(hi / 20)          # poor
+else:                     value = 0
+```
+
+followed by `galaxy_rank_start_values` (see flow above). The same
+10-row × 14-byte geometry at 0xa3d4 is read by **three more independent
+routines** (`0x16754` accumulates `hi * [row+0xc]` over the ten rows;
+`0x20ee4` reuses the (lo, hi) pair; `0x31af4` uses `hi`) — a consistent,
+deliberate table, which is what makes the "table is code" anomaly below so
+strange.
+
+## `FUN_000319c4` @ 0x319c4 and the 0x7980c effect buffer
+
+Called with the three bytes `a, b, c` of the `0x1e4dc` row selected by
+`galaxy->+0x53` (see flow). It writes **32 slots × 3 bytes** at
+`0x7998c..0x799ee` (i.e. `0x7980c + 0x180`), slot `i`, byte `j`:
+
+```
+byte = ((rng_next(4) + 100 - rng_next(4)) * param_j * (9 + i)) / 0xee8
+byte = min(byte, 0x3f)                 # clamp to a 6-bit value
+```
+
+`param_j` = the row byte for that slot-byte position (`a` for byte 0, `b` for
+byte 1, `c` for byte 2); the scale factor starts at 9 and increments by 1 per
+slot. After the loop it calls `0x642f5` (only if `[0x41474] != 0`) and
+`0x64a34` on `0x7980c`.
+
+The region `0x7980c` is an **animation / lighting buffer, not an asteroid
+position table**: `0x64a6a` consumes up to 0x300 bytes from it as 6-bit ramp
+values for a VGA-palette fade (reads DAC ports 0x3c7/0x3c9, builds a 768-entry
+glow table at `0x50d14`), and `0x44f3b` memcpys 336 bytes of it into a
+UI buffer. So `FUN_000319c4` generates per-slot 6-bit brightness/ramp data for
+the galaxy backdrop. Earlier "y-coordinate / position" notes on `0x7980c` are
+**superseded**.
+
 ## Determinism conclusion
 
-- A galaxy's entire layout (surface, decorative ring objects, star fields,
-  planets) is a pure function of its 32-bit seed at struct +0x98.
+- A galaxy's entire content (surface, the 12-slot object, the backdrop/lighting
+  effect data, planets) is a pure function of its 32-bit seed at struct +0x98.
 - The seed is produced by two `rng_next(0x10000)` rolls against the live
   `g_rng_state`, and the home-galaxy path seeds that state with the fixed
   constant **12345** first. So **the galaxy layout is a fixed universe on
@@ -162,16 +231,27 @@ image contains as **executable code**, not data:
 |-----------|---------|------------------------------|
 | 0xa384 (10 words) | 0x11274 block → `+0x6c` | code (tail of the routine before `FUN_0000a3b4`) |
 | 0xa3c0 (10 words) | 0x11274 block → `+0x15e` | **inside `FUN_0000a3b4` @ 0xa3b4** (verified function) |
-| 0xa3d6, stride 0xe | `galaxy_gen_start_values` → `+0x6c` | code |
+| 0xa3d4, stride 0xe | `galaxy_gen_start_values` → `+0x6c` | **inside `FUN_0000a3b4` @ 0xa3b4** (code) |
+| 0xa3d8, stride 0xe | `galaxy_rank_start_values` (ratio divisor) | code |
+| 0xa3d6 / 0xa3d8, stride 0xe | `0x16754`, `0x20ee4` (independent readers) | code |
 | 0xa3dc / 0xa3de, stride 0xe | `galaxy_setup_start_values` → `+0x6c` | code |
 | 0xa398 (3-wide) | main-loop auto-spawn gate | code |
 | 0xa460 | `FUN_00011ba4` | code |
+| **0x1e4dc (10 rows × 3 bytes)** | `galaxy_regenerate` → `FUN_000319c4` scale params | **inside fn @ 0x1e4c6** (code) |
+
+`0x1e4dc` joins the 0xa3xx family: the 10×3-byte scale table that
+`galaxy_regenerate` indexes by `+0x53` is itself inside the body of a function
+(`0x1e4c6..0x1e4f8`, no callers). So **both** the value table (0xa3d4) and the
+scale table (0x1e4dc) of the galaxy-generation chain are code bytes in the
+flat.
 
 Checks performed: **the relocation record stream is fully decoded and verified
 against the flat (37,311 records, groups 1..233 — `docs/dataformats/
-dos4gw-bound.md`)**; no record targets these addresses or the instruction dwords
-that embed them, no data-region dword points at them, and Ghidra's own function
-list places `FUN_0000a3b4` at 0xa3b4. So the values the routines would copy are
+dos4gw-bound.md`)**; no record targets the 0xa000..0xa5000 range at all, and
+none targets 0x1e4dc or the instruction dwords that embed it; a scan of the
+whole code region finds **no writes** to any of these addresses (no `C7 05`,
+`mov [disp],reg`, or similar); and Ghidra's own function list places
+`FUN_0000a3b4` at 0xa3b4. So the values the routines would copy are
 **not present in the flat as static data**. Working hypotheses, unresolved
 without a runtime trace:
 
@@ -180,7 +260,9 @@ without a runtime trace:
 2. **The home block / these slots are never executed in the retail new-game
    path** and the real starting values come from `galaxy_setup_start_values`'s other branch
    (copy from an existing same-type galaxy). This would also make the 0x11274
-   block effectively dead code.
+   block effectively dead code. (The `galaxy_create` call site at 0x414 is
+   reachable from startup, so this can only hold if the *value/scale reads*
+   are the dead part.)
 3. The code bytes genuinely serve double duty (least likely).
 
 Until a DOSBox-X trace settles this, treat every "value copied from
