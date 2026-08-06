@@ -30,14 +30,24 @@ chances of what happens next.
 
 ## A galaxy is its seed
 
-Every galaxy is grown from a single starting number. That number is simply the
-next draw of the universe stream at the moment the galaxy is created — no
-galaxy name and no player input goes into it. Given the same number, the game
-produces the same galaxy, down to the last detail.
+Every galaxy is created from a single starting number drawn from the universe
+stream — no galaxy name and no player input goes into it. When the game needs a
+galaxy's content again, it rebuilds the galaxy's surface and its seeded visual
+backdrop from that number, on a private copy of the stream that is put back
+exactly where it was: **rebuilding** a galaxy neither consumes nor disturbs the
+live stream, and given the same number the rebuild is identical.
 
-Generation works the random stream on a private copy and puts it back exactly
-where it was. Growing a galaxy therefore neither consumes nor disturbs the
-live stream that the rest of the game draws from.
+Two things are deliberately *not* part of that rebuild, and are fixed once, at
+creation, by draws against the live stream:
+
+- the galaxy's **asteroid count**, which is rolled before the seed is drawn,
+  and
+- the **amounts of ore** its asteroids are born with, which the generator rolls
+  straight after the seed and never re-rolls.
+
+This does not break reproducibility at the start of a new game: the stream is
+reset to its fixed starting value first, so creation itself runs against a known
+state, and the whole initial universe comes out the same on every new game.
 
 ## A new game
 

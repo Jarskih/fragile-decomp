@@ -209,12 +209,16 @@ the galaxy backdrop. Earlier "y-coordinate / position" notes on `0x7980c` are
 
 ## Determinism conclusion
 
-- A galaxy's entire content (surface, the 12-slot object, the backdrop/lighting
-  effect data, planets) is a pure function of its 32-bit seed at struct +0x98.
+- Everything the regeneration pass produces (surface, the 12-slot object, the
+  backdrop/lighting effect data) is a pure function of the 32-bit seed at
+  +0x98; the **type, asteroid count and the ten ore amounts are set earlier,
+  at creation**, by draws against the live stream — `galaxy_gen_start_values`
+  has a single call site (0x11b98, inside `galaxy_create`) and is never re-run.
 - The seed is produced by two `rng_next(0x10000)` rolls against the live
   `g_rng_state`, and the home-galaxy path seeds that state with the fixed
-  constant **12345** first. So **the galaxy layout is a fixed universe on
-  every new game**.
+  constant **12345** first. Since only deterministic draws ever advance this
+  stream, the whole universe — the home galaxy and every later spawn — is the
+  same on every new game (for a fixed settings choice).
 - The only clock-seeded stream is `g_rng_state2` (via `rng_seed_clock` in
   `FUN_0005bd24`), consumed by the encounter-placement generator `FUN_0002f114`
   (13 of its 19 call sites; the other six sit in unrecovered gap code — see

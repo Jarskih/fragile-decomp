@@ -4,64 +4,133 @@ title: Asteroids and how a galaxy is born
 
 # Asteroids and how a galaxy is born
 
-*Status: written from static analysis of the game's code. The general shape
-below is solid; the parts that could not yet be recovered from the binary are
-marked (?) and explained at the end. For the underlying dice streams, see
-[Randomness and determinism](randomness.html).*
+*Status: written from static analysis of the game's generator. Everything in
+this page is read directly from the code except the per-ore numbers, which come
+from a value table that could not be recovered from the shipped binary — those
+claims are marked (?) and no concrete numbers are given for them. For the
+arithmetic of the two dice streams (draws in a range, seeding, the private-copy
+discipline), see [Randomness and determinism](randomness.md).*
 
-The game describes itself as set in "an ever-changing, randomly generated
-universe", and it means it literally: the universe is made of **galaxies**, and
-each galaxy is a cluster of **asteroids** — the worlds you prospect, mine,
-colonise and defend. This page is about how a galaxy, and the asteroids inside
-it, come to exist.
+The universe is a collection of **galaxies**, and every galaxy is a cluster of
+**asteroids** — the worlds you prospect, mine and colonise. This page gives the
+exact rules by which a galaxy and its asteroids come into being, in the order
+the game performs them.
 
-## A galaxy is a fixed cluster of asteroids
+## Creation: size, count, seed
 
-Every galaxy is generated to contain a fixed number of asteroids. The number is
-always odd, and always between 25 and 31. It is decided by two things:
+Creating a galaxy performs the following draws, in this order, all from the
+live deterministic stream:
 
-- the **size of the galaxy**, which narrows the range, and
-- a **dice roll** at the moment the galaxy is created, which picks the exact
-  number inside that range.
+1. **Size class.** One draw in 0..4, mapped to class **4..8** — five
+   classes, small to large.
+2. **Asteroid count.** One draw of a coin, uniformly 0 or 1, combined as
 
-A larger galaxy is therefore packed with more asteroids, but two galaxies of
-the same size will still differ from each other.
+   ```
+   count = 2 * (12 + floor((class - 4) * 3 / 5) + coin) + 1
+   ```
 
-## Each asteroid is mostly poor, occasionally rich
+   The count is therefore always **odd**, and each class permits exactly two
+   values, differing by 2, each with probability 1/2:
 
-Every asteroid carries a value for each of the ten kinds of ore the game
-tracks. When the galaxy is born, each of those ten values is rolled for:
+   | class | count |
+   |-------|-------|
+   | 4, 5  | 25 or 27 |
+   | 6, 7  | 27 or 29 |
+   | 8     | 29 or 31 |
 
-- Most of the time the asteroid is a **poor find**: the value comes out at
-  roughly a twentieth of the most that kind of ore can ever be worth.
-- Once in a while the roll falls in a **rich band**, and the asteroid is born
-  holding a serious amount of that ore.
-- Two of the ten kinds always start at nothing on any asteroid (?)
+   Classes 4 and 5 share a range, as do 6 and 7; moving up two classes shifts
+   both possible counts up by 2. Note the count is drawn **before** the seed,
+   so it is never a function of the seed.
+3. **Seed.** Two draws in 0..65535 packed into one 32-bit number. This is the
+   number the game later rebuilds the galaxy's content from. Nothing
+   player-entered ever goes into it.
 
-The game then looks at the ten results and quietly marks the single strongest
-one — every asteroid ends up best known for one kind of ore, and that is the
-kind the game leads you toward.
+All three steps consume the live stream and none of them reads the clock. The
+home galaxy is created immediately after the stream has been reset to its
+fixed starting value, so its class, count and seed — and the ore rolls below —
+are identical on every new game. Galaxies created later draw from wherever the
+stream has reached; those too are deterministic, since only deterministic
+draws ever advance this stream.
 
-## The whole thing is reproducible
+## Ore: what an asteroid is born with
 
-Nothing in the above depends on the clock or on player input. A galaxy is grown
-from a single starting number taken from the universe's deterministic dice
-stream, and every roll inside the growth is made against a private copy of that
-stream. Given the same starting number, the same galaxy comes out, down to the
-amounts of ore on every asteroid. (See [Randomness and
-determinism](randomness.html) for how the streams work and how settings such as
-**arena size** and **asteroid density** fit in.)
+The game tracks **ten kinds of ore**. Its own text names exactly ten (Barium,
+Bytanium, Crystalite, Dragonium, Asteros, Korellium, Nexos, Quazinc, Selenium,
+Traxium), which is the count the generator uses, though the pairing of names to
+the generator's ten slots is not yet confirmed (?).
+
+At creation, every asteroid receives an amount for each kind *k*, rolled as:
+
+```
+u  = draw in 0..99
+if u < T_k:      amount = L_k + draw in 0..(H_k - L_k)     # rich: uniform in [L_k, H_k]
+else:            amount = 1 + draw in 0..(floor(H_k / 20) - 1)   # poor: uniform in 1..floor(H_k / 20)
+```
+
+where *T_k*, *L_k*, *H_k* are per-kind constants. The distribution shape:
+
+- **Rich vs poor** is a single Bernoulli test: the rich branch fires with
+  probability *T_k*/100, clamped to the unit interval. The threshold is a
+  signed 16-bit value and is not restricted to 0..100, so the structure
+  deliberately allows a kind to be **always rich** (T_k ≥ 100) or **never
+  rich** (T_k ≤ 0).
+- **Rich amounts** are uniform over the kind's full band [L_k, H_k]
+  (H_k − L_k + 1 equally likely values).
+- **Poor amounts** are uniform over 1..⌊H_k/20⌋ — at most one twentieth of the
+  kind's ceiling, never 0.
+- **Two of the ten kinds are exempt**: their amount is always exactly 0. No
+  freshly generated asteroid ever holds them (?).
+
+The concrete per-kind values of T_k, L_k, H_k live in a table whose contents
+could not be recovered from the binary (?); this page therefore gives the shape
+of the roll exactly, but withholds numbers rather than inventing them.
+
+## The asteroid's dominant ore
+
+After the ten amounts are rolled, the generator marks the asteroid's single
+dominant kind: the one maximising
+
+```
+amount_k * 256 / H_k      (integer division; ties go to the earlier kind)
+```
+
+i.e. the amount **relative to that kind's ceiling**, not the raw amount. An
+asteroid holding a modest quantity of a low-ceiling ore can be "best at" that
+ore while another kind sits higher in absolute units. Ties are resolved to the
+kind with the lower slot.
+
+This is a creation-time decision. The ten amounts and the dominant kind are
+fixed when the galaxy is created.
+
+## Rebuilding a galaxy from its seed
+
+When the game needs a galaxy's content again, it rebuilds it from the galaxy's
+32-bit seed. The rebuild runs all of its draws against a **private copy** of
+the deterministic stream and hands the stream back where it was, so it never
+consumes or perturbs live play. Given the same seed, the rebuild is identical.
+
+The rebuild covers the galaxy's **surface** and its **seeded visual backdrop**.
+It does **not** re-run the ore roll: that routine has a single call site, at
+creation, and the rebuild never reaches it. Ore amounts and the dominant kind
+therefore stay as fixed at creation, while the surface and backdrop are pure
+functions of the seed.
+
+## What the settings change
+
+Arena size and asteroid density are the two knobs that alter what gets
+generated, and the size classes above are the natural place for them to bite:
+the game's own text describes a small arena as "limited" and packed. The exact
+mapping of the settings onto class, count, ore rolls or the seeded content has
+not yet been traced, so nothing concrete is claimed here (?).
 
 ## Open questions
 
-- The exact odds of the rich band and the exact amounts of ore it grants come
-  from a value table that could not be recovered from the shipped binary — the
-  table is not present in the game's data, and its contents are still a puzzle.
-  Until that is solved, this page deliberately gives no exact numbers, only the
-  shape of the roll (?)
-- It is known *that* the settings change what gets generated, but the exact
-  effect of **arena size** and **asteroid density** on the counts and values
-  above is still being traced (?)
-- Whether the asteroids of a galaxy are *placed* at specific positions by this
-  generator — as opposed to being laid out by a later pass — is not yet
-  established (?)
+- The per-kind threshold and band (T_k, L_k, H_k) could not be recovered from
+  the binary; no numeric instantiation of the rolls above is possible until it
+  is (?).
+- Which two kinds are the always-zero pair, and which kind a given asteroid is
+  "best at", follow from that table and are likewise pending (?).
+- How arena size and asteroid density steer class, count, ore rolls and seeded
+  content (?).
+- Nothing in the generation described here assigns the asteroids coordinates;
+  whether they are *positioned* by a later, separate pass is unresolved (?).
