@@ -65,8 +65,8 @@ one choice of settings, not across different ones.
 
 As play goes on, the field keeps changing — the game tops the number of
 asteroids up toward a ceiling set by the arena-size and density settings by
-spawning replacements near the player (see [Asteroids and how they are
-born](asteroids.md)). Those placements all draw from the same deterministic
+spawning replacements along the map's outer frame (see [Asteroids and how they
+are born](asteroids.md)). Those placements all draw from the same deterministic
 stream, so a fully played-out run follows the same rules as the start.
 
 ## Saving never re-rolls

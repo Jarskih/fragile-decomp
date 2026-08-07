@@ -145,18 +145,23 @@ There are three placement rules, chosen by the game depending on the situation:
 - **Explicit sector.** The caller names the sector to use (column from the
   width, row from the height). Used for the fixed set of asteroids that some
   scenarios pre-place.
-- **Near the player.** The game picks a random starting sector and then walks
-  outward in an expanding square spiral until it finds an empty sector, which
-  biases freshly discovered asteroids towards the player's own area of the map.
-  This is what happens when the field is topped up during play.
+- **During play (field top-up).** The game picks a random starting sector on
+  the map's edge — the left column, or the top or bottom row — and then works
+  its way along the map's outer frame (those three edges, out to three
+  quarters of the way across) until it finds an empty sector. If neither
+  direction of the search finds one, it gives up and places no asteroid that
+  round. The asteroid is set down inside the chosen sector, toward its lower
+  edge, with a small random sideways offset. This is what happens when the
+  field is topped up during play.
 - **Near an existing asteroid (budding).** A new asteroid is placed a random
-  distance between **40 and 110 units** from the *oldest surviving asteroid of
-  the same kind*, in a random direction, and this is re-rolled until the new
-  asteroid is at least **32 units** from every asteroid already in the map.
-  Budding is used when the field itself is created: it scatters each kind's
-  asteroids around its oldest member instead of at the map's edge. It does
-  **not** run during play (? — only the "near the player" rule tops the field
-  up once the game is running).
+  distance between **40 and 110 units** from another asteroid of the same kind
+  — the kind's representative in the game's list of asteroids — in a random
+  direction, and this is re-rolled until the new asteroid is at least
+  **32 units** from every asteroid already in the map. Budding is used when the
+  field itself is created: it scatters each kind's asteroids around its
+  representative instead of at the map's edge. It does **not** run during play
+  (? — only the during-play top-up rule tops the field up once the game is
+  running).
 
 ## What the settings change
 
@@ -166,8 +171,8 @@ generated; the game's own text describes a small arena as "limited" and packed.
 Both are set per scenario. Together they select a single number: the
 **density ceiling**, the most asteroids the field will hold. The game checks,
 roughly every eight ticks of its clock, whether the current number of asteroids
-is below that ceiling; while it is, new asteroids keep appearing near the
-player (placement rule "near the player" above). The ceiling is hard-capped at
+is below that ceiling; while it is, new asteroids keep appearing along the map's
+outer frame (the during-play top-up rule above). The ceiling is hard-capped at
 **100** — when the selected setting would allow 100, the game in practice fills
 to 90 and stops, keeping ten sectors free. The exact per-setting ceiling values
 have not been recovered from the binary (?), but the shape is confirmed: bigger
@@ -183,16 +188,16 @@ Putting it together, the whole field is a single scheme:
 1. **The home world** is created first from the fixed starting stream, so it is
    identical on every new game (see [Randomness and determinism](randomness.md)).
 2. **The field is created by budding.** Each kind's asteroids scatter around its
-   oldest surviving member, 40–110 units out, never at the map's edge (placement
-   rule "near an existing asteroid" above).
-3. **The field is topped up near the player.** During play, while the count is
-   below the density ceiling, new asteroids keep appearing near the player (see
+   representative, 40–110 units out, never at the map's edge (placement rule
+   "near an existing asteroid" above).
+3. **The field is topped up during play.** While the count is below the density
+   ceiling, new asteroids keep appearing along the map's outer frame (see
    above).
 
 The result is a deterministic home world that stays put, surrounded by a field
-that is built by budding at creation and topped up near the player during play.
-Whether losses during play are ever replaced by budding rather than the
-near-player rule is not yet confirmed (?).
+that is built by budding at creation and topped up along the map's outer frame
+during play. Whether losses during play are ever replaced by budding rather
+than the top-up rule is not yet confirmed (?).
 
 ## Open questions
 

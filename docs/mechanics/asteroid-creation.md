@@ -3,10 +3,10 @@
 Status: creation routine, regeneration chain and the **placement machinery**
 all confirmed (static disassembly), including the `asteroid_gen_start_values` →
 `asteroid_rank_start_values` (+0x53) → `0x1e4dc` scale-row → `FUN_000319c4` tail
-of the regeneration chain, the `asteroid_place` modes (0x3e8 spiral near
-player / 0x3e9 random-cell spiral / explicit cell), the budding placement
-`asteroid_place_near_oldest` @ 0x12074 (40..110 units, ≥32-unit clearance,
-near the oldest asteroid of the type), and the new-game field setup at 0xf994
+of the regeneration chain, the `asteroid_place` modes (0x3e8 edge-frame
+search / 0x3e9 random-cell walk / explicit cell), the budding placement
+`asteroid_place_near_oldest` @ 0x12074 (40..109 units, ≥32-unit clearance,
+near an existing asteroid of the type), and the new-game field setup at 0xf994
 (fill-to-ceiling + per-type budding). The home-asteroid block at 0x11274 is
 confirmed but the values it copies are NOT in the flat (see "Open question"
 below). The one indirect-call assumption (the new-game path reaching the
@@ -127,9 +127,9 @@ Verified asm flow:
     `g_density_ceiling_table[ g_map_density + 3*g_map_size ] @ 0xa398`, where
     `g_map_size` `[0x16d64]` and `g_map_density` `[0x16d65]` are the two
     scenario settings and `g_asteroid_count` is the live counter `[0xca20]`.
-    `asteroid_place(0x3e8)` is the "spawn near the player" placement — a spiral
-    search over the 32×32 occupancy grid from the player's cell (see
-    "Placement" below). The 8-tick cadence and the `ceiling` read are the
+    `asteroid_place(0x3e8)` is the in-game top-up placement — a search of the
+    32×32 occupancy grid starting from a random edge cell (see "Placement"
+    below). The 8-tick cadence and the `ceiling` read are the
     description's "every so often, check the density ceiling and top the field
     up".
 - Other creation callers in `FUN_00013844` (0x13941..0x13ad5) follow the same
@@ -144,40 +144,62 @@ Verified asm flow (969 bytes):
    object list and for every object write
    `grid[(x>>16)/0x20 + ((y>>16)/0x20)*0x20] = 1` where `+0x54`/`+0x58` are the
    16.16 position words. Cell size is **0x20 = 32 units**.
-2. **Mode `param == 0x3e8` (1000)** — the in-game "near the player" spawn:
-   - draw `x0` from `rng_next(0x100)`, fold it into an offset
-     `iVar2 = max(0, (x0 - c)/2)` where `c` is `[0xcdb0]`-derived (cell columns
-     `3*width/4`); draw a spiral direction `iVar3 = rng_next(4)`; start cell
-     `(iVar7, iVar6) = (iVar2, c)`.
-   - **spiral search**: while the current cell is occupied, advance through the
-     four directional cases (up / right / down / left) exactly as the 0x3e9 mode
-     does (see below); the search is bounded by `[0xcdb0]`/`[0xcdb4]` in the
-     same way.
-   - on success write `+0x54 = (rng_next(0x10) + iVar7*0x20 + 8) * 0x10000`
-     and `+0x58 = (iVar4 + 0x1f) << 0x10` (iVar4 is the current row bound), or
-     `(rng_next(0x10) + bound + 8) * 0x10000` on the y when at the left edge
-     (iVar7 == 0).
-   - if the spiral wraps and the wrap flag is already set, set
-     `asteroid->+0xd0 = 0xff`, call `obj_list_move_front` (reinsert node) and
-     return 0 (give up — no free cell).
-   - afterwards, if `asteroid->+0x51 == 0`, set it to 1.
-3. **Mode `param == 0x3e9` (1001)** — the new-game fill placement:
-   - draw random cell column `ebx = rng_next([0xcdb0])` and row
-     `ecx = rng_next([0xcdb4])`, remember both in stack slots; draw a spiral
-     direction `eax = rng_next(4)`.
-   - **spiral search**: `while grid[ebx + ecx*0x20] != 0`, move by case
-     `eax`: 0 = right (wraps at `[0xcdb0]`), 1 = up (wrap at `[0xcdb4]`, tracks
-     min/max), 2 = down, 3 = left (tracks min/max) — a classic expanding square
-     spiral. `eax` cycles via `jmp dword [cs:eax*4+0x11c10]` (jump table).
-   - on success: `+0x54 = (ebx*0x20 + 0x10) * 0x10000`,
-     `+0x58 = (ecx*0x20 + 0x10) * 0x10000` (cell centre, 16.16).
+2. **Mode `param == 0x3e8` (1000)** — the in-game top-up spawn (0x11c87..
+   0x11e66):
+   - **start cell**: a single draw `draw = rng_next(width + height +
+     ceil(width/2))` ([0xcdb0]/[0xcdb4]). If `draw < height` the start is on
+     the **left edge**, `(col=0, row=draw)`. Otherwise, with `dal = draw -
+     height`, the start is on the **top edge** when `dal` is odd,
+     `(col=ceil(dal/2), row=0)`, or on the **bottom edge** when even,
+     `(col=dal/2, row=height-1)`. The start cell is therefore always on the
+     map's left/top/bottom edge, never in the interior; the column cannot
+     exceed ~`3*width/4`.
+   - **direction**: `dir = rng_next(2)` drawn once (0 or 1); the search steps
+     are deterministic from there.
+   - **frame search** (not a spiral, and **no player reference**): while the
+     current cell is occupied, step per `dir`. With `dir == 0` the walk goes
+     left along the row to the left column, down the left column, then right
+     along the top row; with `dir == 1` it goes right along the row (or, from
+     the left column, down it then right along the bottom row). The walk is
+     bounded at `col = floor(3*width/4)` (recomputed every step). Reaching the
+     bound the first time restarts from the saved start cell with the flipped
+     `dir` (wrap flag set); reaching it the second time gives up. Only the
+     map's outer frame — the left column, the top row and the bottom row, out
+     to `floor(3*width/4)` — is ever searched.
+   - on success:
+     `+0x54 = (col*0x20 + rng_next(0x10) + 8) * 0x10000` when `col != 0`
+     (else 0), and `+0x58 = (row*0x20 + 0x1f) * 0x10000` when `row != 0`
+     (else 0) — the asteroid lands near the bottom edge of its cell with a
+     horizontal jitter; on the left column the jitter moves to the vertical
+     instead (`x = 0`, `y = (row*0x20 + rng_next(0x10) + 8) * 0x10000`).
+   - **give up**: set `asteroid->+0xd0 = 0xff`, call `obj_list_move_front`
+     (0x21314) with `eax = [0xc3e0]` — unlink the node from the master list and
+     return it to the free list — and return 0.
+   - afterwards (0x3e8 mode only), if `asteroid->+0x51 == 0`, set it to 1.
+3. **Mode `param == 0x3e9` (1001)** — the new-game fill placement (0x11e74..
+   0x11fa2):
+   - draw start cell `col = rng_next([0xcdb0])`, `row = rng_next([0xcdb4])`
+     (both uniform over the map); remember the four reach bounds (initially
+     the start cell).
+   - **bounded random walk**: at each step the direction is re-drawn,
+     `dir = rng_next(4)`; while `grid[col + row*0x20] != 0`, move one cell by
+     case `dir` via `jmp dword [cs:dir*4+0x11c10]`: 0 = right (col+1, wraps at
+     `[0xcdb0]`), 1 = up (row-1, clamps at 0), 2 = left (col-1, clamps at 0),
+     3 = down (row+1, wraps at `[0xcdb4]`). Moving past a bound widens it, so
+     the walk searches outward from the random start until an empty cell is
+     found — not a deterministic spiral.
+   - on success: `+0x54 = (col*0x20 + 0x10) * 0x10000`,
+     `+0x58 = (row*0x20 + 0x10) * 0x10000` (cell centre, 16.16).
    - **jitter**: if `[0x16d5e] == 0`, add `(rng_next(0x10) - 8) * 0x10000` to
      both +0x54 and +0x58 (random ±8-unit offset inside the cell).
-4. **Mode `param < 1000`** — explicit cell:
-   - `uVar5 = param % [0xcdb0]` (column); row = `param / [0xcdb0]` (+1 if the
-     remainder is zero).
-   - `+0x54 = (uVar5*0x20 - 0x10) * 0x10000`, `+0x58 = (row*0x20 - 0x10) * 0x10000`
-     (cell centre, 16.16); jitter `(rng_next(0x10) - 4)` if `[0x16d5e]==0`.
+4. **Mode `param < 1000`** — explicit cell (0x11fa2..0x1203e):
+   - `col = param % [0xcdb0]` (unsigned div); `row = param / [0xcdb0]`, plus 1
+     when the remainder is **non-zero** (row 0 only when `param` is a whole
+     number of rows).
+   - `+0x54 = (col*0x20 - 0x10) * 0x10000`, `+0x58 = (row*0x20 - 0x10) * 0x10000`
+     (the cell's top-left corner, not its centre, 16.16); jitter
+     `(rng_next(0x8) - 4) * 0x10000` on each axis (two separate draws) if
+     `[0x16d5e]==0`.
 5. Every mode ends with `asteroid_set_surface` (`FUN_00011bb4`), which rolls
    `+0x51` from `g_surface_style_table` @ 0xa460 (`rng_next(0x10)` index) and
    `+0x52` from `0xa488` (`rng_next(0xc)` index, `-5`, plus another
@@ -211,19 +233,23 @@ do {
 asteroid_set_surface(); return new
 ```
 
-- The reference asteroid `ref` is passed in EAX by the caller — the oldest
-  surviving asteroid of the same type (the new-game setup walks the master list
-  and picks the first node whose `+0xd0` type matches, starting from the list
-  head, i.e. oldest first).
+- The reference asteroid `ref` is passed in EAX by the caller: the setup walks
+  the master list and picks the **first node whose `+0xd0` type matches**. The
+  master list is head-inserted (each `asteroid_create` moves the node to the
+  front, newest first), so this is the most recently created asteroid of the
+  kind — and since the per-type loop of the setup (step 5) creates exactly one
+  typed asteroid per kind, in practice it is that representative.
 - The three call sites in the new-game setup use `(base, range)`:
-  `(type + 0x1d, 0)` — fixed distance per type; `(0x48, 0x6e-0x48=0x26)` —
-  72..110 units; `(0x28, 0x6e-0x28=0x46)` — **40..110 units**. The last is the
-  description's "40-110 units out, re-rolling until 32 units clearance".
+  `(size_class + 0x1d, 0)` — the freshly created asteroid's own `+0x50` size
+  class (4..8) plus 0x1d, i.e. a **fixed 33..37 units**; `(0x48, 0x6e-0x48=0x26)`
+  — 72..109 units; `(0x28, 0x6e-0x28=0x46)` — **40..109 units**. The last two
+  are the description's "40-110 units out, re-rolling until 32 units clearance"
+  (exact upper bound is base+range-1).
 - Direction comes from the two 256-entry tables `g_dir_cos_table` @ 0x5c900
   (x) / `g_dir_sin_table` @ 0x5c800 (y) indexed by the angle draw — the game's
   cosine/sine lookup.
 - This is the mechanism that keeps the field full without spawning at the map
-  edge: each type's numbers are topped up around its oldest surviving member.
+  edge: each type's numbers are topped up around its representative member.
 
 ## New-game field setup @ 0xf994
 
@@ -238,36 +264,54 @@ the flow below is from raw disassembly:
    `[0x16d68]` is set, OR 1 into `[type*0x210 + 0xd239]` (the per-type flag
    byte at 0xd239, stride 0x210, base 0x1290..0x1ef0).
 4. If `[0x16d53] != 0`, clear bit 0 of every type flag (`and 0xfe`).
-5. Count the types with flag bit 0 set (ebp); `[0xca28] = 1`;
-   draw `rng_next(0x100)` and `idiv ebp` to pick an initial type index.
-6. **Fill to the ceiling** (0xfc90..0xfd0d):
+5. **One asteroid per flagged kind** (0xfb88..0xfc88), after counting the
+   flagged types (ebp) and setting `[0xca28] = 1`: pick
+   `type = rng_next(0xf)`, re-drawn until that type's flag bit 0 is set and
+   the kind has not been placed yet; compute a spawn position around the map
+   centre — `distance = a + rng_next(b)` (a, b scaled from the flagged-type
+   count and the map's unit size via `[2*ebp+0xa3a1]`/`[2*ebp+0xa3a2]`), with
+   the direction from the 0x5c900/0x5c800 tables; then `asteroid_create`,
+   `asteroid_set_pos`, `FUN_00023054(type)` (writes `+0xd0 = type`, bumps the
+   type's live count and presence flag), `[+0x51] = 0`, `FUN_00012894`, and —
+   if `[0x16d5e] != 0` — copy the ten starting values from 0xa384 into
+   `+0x160`. Repeats until every flagged kind has its one asteroid. These are
+   the typed asteroids the budding pass anchors on.
+6. **Fill to the ceiling** (0xfc90..0xfd0d) — **arena mode only**
+   (`g_mode_flag == 0`; in scenario mode the fill is skipped at 0xfc96..0xfc98):
    - count live objects in the master list (ebx);
    - `ceiling = byte[g_density_ceiling_table + 3*g_map_size + g_map_density]`
      (same table as the main-loop gate);
    - `need = ceiling - count`; if `ceiling == 0x64 (100)` then `need -= 10`
      (leave 10 slots free — the hard cap);
    - loop `need` times: `asteroid_create` + `asteroid_place(0x3e9)` — place
-     each new asteroid near the player by the random-cell spiral.
-7. `asteroid_prune_overlaps()` (`FUN_000137d4`, the only call site) — destroys
-   asteroids (`+0xd0 == 0`, still-untyped) that sit within **90 units**
-   (`0x1fa5 = 8101 ≈ 90²`) of a typed asteroid (`+0xd0 != 0`). A cleanup pass
-   after the random-cell fill.
+     each new asteroid by the mode-0x3e9 random-cell walk (see "Placement").
+     These fill asteroids are **untyped** (`+0xd0 == 0`).
+7. `asteroid_prune_overlaps()` (`FUN_000137d4`, the only call site) — also
+   arena-mode only: destroys the still-untyped asteroids (`+0xd0 == 0`) that
+   sit within **90 units** (`0x1fa5 = 8101 ≈ 90²`) of a typed asteroid
+   (`+0xd0 != 0`). A cleanup pass after the random-cell fill.
 8. **Budding pass** (0xfd24..0xfe44): for each type flag with bit 0 set, find
-   the first (oldest) master-list asteroid of that type, then:
+   the first master-list asteroid of that type (newest first — the step-5
+   representative), then:
    - if `g_mode_flag == 0`: create `(g_map_size + g_map_density + 1)` asteroids,
-     each `asteroid_place_near_oldest` with base `0x28` (40), range `0x6e`
-     (110) — i.e. **40..110 units** from the oldest asteroid of the type;
-   - else: create one asteroid at fixed distance `type + 0x1d` from it, and a
-     further loop creating more at 72..110 units (counts bounded by
-     `g_map_size + g_map_density + 2`).
+     each `asteroid_place_near_oldest` with base `0x28` (40), range
+     `0x6e-0x28=0x46` (70) — i.e. **40..109 units** from the representative;
+   - else (`g_mode_flag != 0`, in-game/scenario mode): **types 9..14 are
+     skipped entirely** (0xfd31..0xfd39) — only types 0..8 get an initial
+     field; for each kept type create **one** asteroid at fixed distance
+     `size_class + 0x1d` (the new asteroid's own `+0x50` class, 4..8, so
+     33..37 units), copy the representative's surface bytes `+0x51`/`+0x52`
+     onto it (and if its `+0x51` > 2, re-roll it as `rng_next(3)`), then a
+     further loop of `(g_map_size + g_map_density + 2)` asteroids at
+     72..109 units.
 9. The whole loop advances the type pointer by 0x210 per type (0x1290..0x1ef0,
    i.e. up to 14 type rows) and runs `FUN_00013844` at the end.
 
-This is the description's **"the rest of the field fills in — budding near the
-oldest surviving asteroid of each type, 40-110 units out, ≥32-unit clearance,
-never at the edge"**. Note the budding happens only here, at field creation:
-during play the main-loop gate tops the field up near the player (0x3e8),
-not by budding (see "Scenario settings" below).
+This is the description's **"the rest of the field fills in — budding near an
+existing asteroid of each type, 40-110 units out, ≥32-unit clearance, never at
+the edge"**. Note the budding happens only here, at field creation: during play
+the main-loop gate tops the field up along the map's outer frame (0x3e8), not
+by budding (see "Scenario settings" below).
 
 ## Map dimensions (cell grid)
 
@@ -328,11 +372,11 @@ present in the flat; the flat cannot tell us e.g. "small = 30×30 cells".
   has exactly three call sites (0xfd9f, 0xfdcd, 0xfe20), all inside the
   new-game-setup gap routine — the budding pass is part of field creation, not
   of in-play population maintenance. During play the count is kept up by the
-  main-loop gate alone: `asteroid_create` + `asteroid_place(0x3e8)` near the
-  player every 8 ticks while below the ceiling. So the description's "budding
-  keeps each kind's population up during play" is **not supported** by the
-  code: budding is a one-time field-builder, and in-play top-ups appear near
-  the player regardless of type.
+  main-loop gate alone: `asteroid_create` + `asteroid_place(0x3e8)` at the
+  map's outer frame every 8 ticks while below the ceiling. So the
+  description's "budding keeps each kind's population up during play" is **not
+  supported** by the code: budding is a one-time field-builder, and in-play
+  top-ups appear along the map's outer frame regardless of type.
 
 ## Regeneration: `asteroid_regenerate` @ 0x320d4
 
