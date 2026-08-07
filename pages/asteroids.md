@@ -4,12 +4,15 @@ title: Asteroids and how they are born
 
 # Asteroids and how they are born
 
-*Status: written from static analysis of the game's generator. Everything in
-this page is read directly from the code except the per-ore numbers, which come
-from a value table that could not be recovered from the shipped binary — those
-claims are marked (?) and no concrete numbers are given for them. For the
-arithmetic of the two dice streams (draws in a range, seeding, the private-copy
-discipline), see [Randomness and determinism](randomness.md).*
+*Status: written from static analysis of the game's generator and placement
+machinery. The creation order, the size/width/seed draws, the ore distribution
+shape, the three placement rules, the density ceiling and the budding scheme
+are all read directly from the code. Only the per-ore numbers and the exact
+per-setting ceiling values come from tables that could not be recovered from
+the shipped binary — those claims are marked (?) and no concrete numbers are
+given for them. For the arithmetic of the two dice streams (draws in a range,
+seeding, the private-copy discipline), see
+[Randomness and determinism](randomness.md).*
 
 The game sets its action in "an ever-changing, randomly generated universe".
 That universe is a map of **sectors** — the "Fragmented Sectors" the game's
@@ -127,18 +130,69 @@ backdrop are pure functions of the seed.
 ## Placing an asteroid in a sector
 
 Creation and the ore roll give each asteroid its nature; a later, separate step
-assigns its position. The asteroid is placed in a free slot of the sector
-grid — one asteroid per slot — and asteroids already placed are skipped, so no
-two asteroids ever share a slot. Placement for newly discovered asteroids is
-biased towards the player's own position on the map.
+assigns its position.
+
+The map is a grid of square sectors. Every asteroid sits in its own sector —
+one per sector — because placement re-checks a grid of already-occupied sectors
+each time it runs. The occupied grid is 32 by 32 sectors and is rebuilt from
+the current object list on every placement, so no two asteroids ever share a
+sector. Each placement picks a free sector and then jitters the asteroid's
+exact position by a small random amount within that sector, so two asteroids
+never sit at identical coordinates even when close.
+
+There are three placement rules, chosen by the game depending on the situation:
+
+- **Explicit sector.** The caller names the sector to use (column from the
+  width, row from the height). Used for the fixed set of asteroids that some
+  scenarios pre-place.
+- **Near the player.** The game picks a random starting sector and then walks
+  outward in an expanding square spiral until it finds an empty sector, which
+  biases freshly discovered asteroids towards the player's own area of the map.
+  This is what happens when the field is topped up during play.
+- **Near an existing asteroid (budding).** A new asteroid is placed a random
+  distance between **40 and 110 units** from the *oldest surviving asteroid of
+  the same kind*, in a random direction, and this is re-rolled until the new
+  asteroid is at least **32 units** from every asteroid already in the map.
+  Budding is used when the field itself is created: it scatters each kind's
+  asteroids around its oldest member instead of at the map's edge. It does
+  **not** run during play (? — only the "near the player" rule tops the field
+  up once the game is running).
 
 ## What the settings change
 
 Arena size and asteroid density are the two knobs that alter what gets
-generated: the game's own text describes a small arena as "limited" and packed.
-The exact mapping of the settings onto the sector map's extent, the surface
-classes above, the ore rolls or the seeded content has not yet been traced, so
-nothing concrete is claimed here (?).
+generated; the game's own text describes a small arena as "limited" and packed.
+
+Both are set per scenario. Together they select a single number: the
+**density ceiling**, the most asteroids the field will hold. The game checks,
+roughly every eight ticks of its clock, whether the current number of asteroids
+is below that ceiling; while it is, new asteroids keep appearing near the
+player (placement rule "near the player" above). The ceiling is hard-capped at
+**100** — when the selected setting would allow 100, the game in practice fills
+to 90 and stops, keeping ten sectors free. The exact per-setting ceiling values
+have not been recovered from the binary (?), but the shape is confirmed: bigger
+arena and higher density select a higher ceiling from a per-scenario table.
+
+A scenario also fixes which **kinds** of asteroid appear at all (the game's
+"races"); only asteroids of those kinds are ever placed.
+
+## How the field fills and refills
+
+Putting it together, the whole field is a single scheme:
+
+1. **The home world** is created first from the fixed starting stream, so it is
+   identical on every new game (see [Randomness and determinism](randomness.md)).
+2. **The field is created by budding.** Each kind's asteroids scatter around its
+   oldest surviving member, 40–110 units out, never at the map's edge (placement
+   rule "near an existing asteroid" above).
+3. **The field is topped up near the player.** During play, while the count is
+   below the density ceiling, new asteroids keep appearing near the player (see
+   above).
+
+The result is a deterministic home world that stays put, surrounded by a field
+that is built by budding at creation and topped up near the player during play.
+Whether losses during play are ever replaced by budding rather than the
+near-player rule is not yet confirmed (?).
 
 ## Open questions
 
@@ -147,8 +201,10 @@ nothing concrete is claimed here (?).
   is (?).
 - Which two kinds are the always-zero pair, and which kind a given asteroid is
   "best at", follow from that table and are likewise pending (?).
-- How arena size and asteroid density steer the sector map's extent, the
-  surface classes, ore rolls and seeded content (?).
-- Whether the slot grid of the placement step is the same as the map of
-  sectors the game draws and names (the two are the same size in the code, but
-  the identity is not yet confirmed) (?).
+- The exact per-setting density-ceiling values (which setting maps to which
+  ceiling number) are read from a scenario table whose contents are not in the
+  shipped binary (?).
+- Whether the 32×32 sector grid of the placement step is the same as the map of
+  sectors the game draws and names (the code re-derives the grid from the object
+  list on every placement, and the map's on-screen extent is set from the same
+  two dimensions, but the identity is not yet confirmed) (?).

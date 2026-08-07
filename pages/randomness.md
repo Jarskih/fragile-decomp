@@ -52,17 +52,22 @@ state, and the whole initial universe comes out the same on every new game.
 ## A new game
 
 At the start of a new game the universe stream is wound to a fixed starting
-value before the first asteroids are made, so the initial universe is expected
-to be the same on every new game — the same asteroids in the same places (?).
+value before the first asteroid is made. That first asteroid — the **home
+world** — is therefore identical on every new game: same surface, same ore, and
+its own 32-bit seed, which the game remembers. The stream keeps its known
+position from there, so everything drawn later is also the same *given the same
+sequence of draws* (?).
 
 The settings change what gets generated, though. The options are **arena
 size** (Small / Medium / Large), **asteroid density** (Standard / High) and
 **atmosphere** (Peaceful / Neutral / Aggressive), so the above holds within
 one choice of settings, not across different ones.
 
-As play goes on, more asteroids appear — scouts report new finds, new
-discoveries happen. Those are drawn from the same deterministic stream, so the
-growing universe follows the same rules as the start.
+As play goes on, the field keeps changing — the game tops the number of
+asteroids up toward a ceiling set by the arena-size and density settings by
+spawning replacements near the player (see [Asteroids and how they are
+born](asteroids.md)). Those placements all draw from the same deterministic
+stream, so a fully played-out run follows the same rules as the start.
 
 ## Saving never re-rolls
 
