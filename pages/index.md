@@ -33,6 +33,11 @@ project.
 - [Asteroids and how they are born](asteroids.md) — how the asteroids that
   sit in the sectors are generated: their surfaces, their ore, and what stays
   reproducible.
+- [Ores and mining](ore-and-mining.md) — the ten ores, the three mines, how
+  much ore each asteroid holds, and how the two rarest ores are distributed.
+- [Asteroid spawning — implementation instructions](asteroid-spawning.md) —
+  the build brief for the asteroid field: creation, movement, population
+  maintenance, and the colony surface.
 
 The technical analysis (addresses, disassembly references, open questions) is
 intentionally **not** published here; it stays in the repository for

@@ -49,3 +49,5 @@ venv/
 Thumbs.db
 *.swp
 *~
+/Fragile Allegiance
+/ghidra_12.1.2_PUBLIC

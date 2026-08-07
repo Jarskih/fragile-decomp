@@ -31,3 +31,20 @@ Source: disassembly | trace | in-game test | manual
 
 Values that are still uncertain are marked `?` and revisited later. Nothing in
 this directory is copied game data — it is our reconstruction, in our words.
+
+## Index
+
+- `main-loop.md` — the per-tick game-state dispatcher and the subsystem
+  functions/globals it drives (economy, relations, fleets, events, terrain,
+  building, victory states).
+- `asteroid-spawning.md` — the new default game: home asteroid, creation,
+  placement, daily drift, growth gate, custom size/density settings.
+- `asteroid-field-maintenance.md` — the population keeper, the "budding"
+  respawn rule, movement and types (from savegame diffs).
+- `ore-and-mining.md` — the ten ores, the three rarity tiers, mine buildings,
+  ore generation at asteroid creation, deposit placement, mining depletion.
+- `colony-surface-grid.md` — the colony building grid: terrain-record table,
+  surface objects, crater/building cells, colony-view sprite building, the
+  lazy "Create_Surface_Map" creator (unrecovered).
+- `asteroid-creation.md`, `rng.md` — reference-build notes (see
+  `asteroid-spawning.md` for the GOG address table).

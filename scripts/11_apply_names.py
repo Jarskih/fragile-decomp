@@ -12,6 +12,7 @@ The map keys are image-relative addresses for the flat image:
   globals   0x16d6c -> g_mode_flag      (renames DAT_00016d6c)
   functions 0x5bada -> rng_next         (renames FUN_0005bada)
   literals  0xc3f4  -> g_obj_list_sentinel  (renames the raw literal 0xc3f4)
+  strings   0x8bbd0 -> str_palette_br12     (renames any Ghidra s_..._0008bbd0 label)
   locals    0x31af4 -> { "iVar3": "slot", ... }  (function-scoped renames)
 Global keys also rename RAM-pointer symbols: iRam0000c3c4 and uRam0000c3c4
 are matched for globals such as 0xc3c4 -> g_asteroid_ptr.
@@ -44,15 +45,18 @@ _HEX = set("0123456789abcdef")
 
 
 def load_map(path: Path) -> tuple[list[tuple[str, str]],
+                                   list[tuple[str, str]],
                                    dict[int, list[tuple[str, str]]], int]:
-    """Return (global_table, function-addr -> local renames, total_name_count)."""
+    """Return (global_table, string_patterns, function-addr -> local renames,
+    total_name_count)."""
     if not path.exists():
-        return [], {}, 0
+        return [], [], {}, 0
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected a JSON object")
 
     tables: list[tuple[str, str]] = []
+    seen: set[str] = set()
 
     def add_global(kind: str, prefix: str) -> None:
         for raw, name in (data.get(kind) or {}).items():
@@ -66,13 +70,17 @@ def load_map(path: Path) -> tuple[list[tuple[str, str]],
             token = f"{prefix}{int(addr, 16):08x}"
             # Ghidra prefixes overlapping globals with '_' (_DAT_0006bfb8).
             for t in (token, f"_{token}"):
-                if t not in dict(tables):
+                if t not in seen:
+                    seen.add(t)
                     tables.append((t, name))
 
     add_global("globals", "DAT_")
     # RAM-pointer globals get iRam/uRam symbols rather than DAT_.
     add_global("globals", "iRam")
     add_global("globals", "uRam")
+    # Ghidra also emits PTR_DAT_/PTR_LAB_ symbols for data pointers.
+    add_global("globals", "PTR_DAT_")
+    add_global("globals", "PTR_LAB_")
     add_global("functions", "FUN_")
 
     for raw, name in (data.get("literals") or {}).items():
@@ -83,7 +91,24 @@ def load_map(path: Path) -> tuple[list[tuple[str, str]],
             raise ValueError(f"invalid literal address {raw!r} in {path}")
         if not _IDENT.match(name):
             raise ValueError(f"not a valid C identifier {name!r} in {path}")
-        tables.append((f"0x{int(addr, 16):x}", name))
+        tok = f"0x{int(addr, 16):x}"
+        if tok not in seen:
+            seen.add(tok)
+            tables.append((tok, name))
+
+    # String constants: keys are addresses; match any Ghidra `s_..._<addr>`
+    # label whose 8-hex-digit address suffix is the key. These need a wildcard
+    # pattern, so they are kept as regexes and applied in a second pass.
+    string_tables: list[tuple[str, str]] = []
+    for raw, name in (data.get("strings") or {}).items():
+        addr = raw.strip().lower()
+        if addr.startswith("0x"):
+            addr = addr[2:]
+        if not addr or not all(c in _HEX for c in addr):
+            raise ValueError(f"invalid string address {raw!r} in {path}")
+        if not _IDENT.match(name):
+            raise ValueError(f"not a valid C identifier {name!r} in {path}")
+        string_tables.append((rf"\bs_[A-Za-z0-9_]*_{int(addr, 16):08x}\b", name))
 
     # longest first so a token is never a prefix of a longer one being replaced
     tables.sort(key=lambda kv: len(kv[0]), reverse=True)
@@ -108,14 +133,35 @@ def load_map(path: Path) -> tuple[list[tuple[str, str]],
         locals_map[int(addr, 16)] = table
 
     local_count = sum(len(t) for t in locals_map.values())
-    return tables, locals_map, len(data.get("globals", {})) \
-        + len(data.get("functions", {})) + len(data.get("literals", {})) \
-        + local_count
+    return (tables, string_tables, locals_map,
+            len(data.get("globals", {})) + len(data.get("functions", {}))
+            + len(data.get("literals", {})) + len(data.get("strings", {}))
+            + local_count)
 
 
-def _subst(text: str, tables: list[tuple[str, str]]) -> str:
-    for old, new in tables:
-        text = re.sub(rf"\b{re.escape(old)}\b", new, text)
+def _subst(text: str, tables: list[tuple[str, str]],
+           string_tables: list[tuple[str, str]]) -> str:
+    """Single-pass substitution of all patterns.
+
+    Tables arrive sorted longest-first, so building one alternation regex
+    preserves the original match order (at any position the first matching
+    alternative wins). Each entry is an exact token that already carries word
+    boundaries via the alternation wrapper; string patterns are applied in a
+    second pass because they embed a wildcard.
+    """
+    if tables:
+        pattern = re.compile(r"\b(?:" + "|".join(re.escape(t) for t, _ in tables) + r")\b")
+        text = pattern.sub(lambda m: dict(tables)[m.group(0)], text)
+    if string_tables:
+        pattern = re.compile("|".join(f"({p})" for p, _ in string_tables))
+
+        def _repl(m):
+            for i, grp in enumerate(m.groups()):
+                if grp is not None:
+                    return string_tables[i][1]
+            return m.group(0)
+
+        text = pattern.sub(_repl, text)
     return text
 
 
@@ -170,6 +216,7 @@ def header(program: str, applied: int, mapped: int,
 
 
 def process_program(prog_dir: Path, out_dir: Path, tables: list[tuple[str, str]],
+                    string_tables: list[tuple[str, str]],
                     locals_map: dict[int, list[tuple[str, str]]],
                     mapped: int) -> tuple[int, int]:
     src_c = prog_dir / "decompiled.c"
@@ -178,7 +225,7 @@ def process_program(prog_dir: Path, out_dir: Path, tables: list[tuple[str, str]]
     out_dir.mkdir(parents=True, exist_ok=True)
 
     text = src_c.read_text(encoding="utf-8")
-    named = _subst(text, tables)
+    named = _subst(text, tables, string_tables)
     named, local_hits = apply_locals(named, locals_map)
     applied = sum(old in text for old, _ in tables)
     (out_dir / "decompiled.c").write_text(
@@ -191,7 +238,7 @@ def process_program(prog_dir: Path, out_dir: Path, tables: list[tuple[str, str]]
         named_rows = []
         for line in rows:
             name, sep, rest = line.partition("\t")
-            named_rows.append(_subst(name, tables) + sep + rest if sep else line)
+            named_rows.append(_subst(name, tables, string_tables) + sep + rest if sep else line)
         (out_dir / "functions.tsv").write_text("\n".join(named_rows) + "\n",
                                                encoding="utf-8")
     return 1, len(local_hits)
@@ -201,7 +248,7 @@ def main() -> int:
     cfg = lib.load_config()
     decomp = lib.decomp_dir(cfg)
     outroot = lib.named_dir(cfg)
-    tables, locals_map, mapped = load_map(MAP_FILE)
+    tables, string_tables, locals_map, mapped = load_map(MAP_FILE)
 
     programs = [p for p in sorted(decomp.iterdir())
                 if p.is_dir() and (p / "decompiled.c").exists()]
@@ -213,7 +260,7 @@ def main() -> int:
     local_hits = 0
     for p in programs:
         prog_count, prog_hits = process_program(
-            p, outroot / p.name, tables, locals_map, mapped)
+            p, outroot / p.name, tables, string_tables, locals_map, mapped)
         count += prog_count
         local_hits += prog_hits
     lib.note(f"[apply_names] {mapped} curated name(s) from {MAP_FILE} "
