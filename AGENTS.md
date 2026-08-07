@@ -76,10 +76,25 @@ Nothing derived from the game's copyrighted files may ever be committed.
 - `make check` — verify installed toolchain against `config/rules.yaml`
 - `make all` — run the full pipeline (download → verify → extract → inventory
   → binary-info → extract-flat → flat-analyze → disassemble → strings →
-  dat-survey → trace → names)
+  dat-survey → trace → names → messages)
 - `make clean` — wipe `build/` (derived artifacts only; never touches `iso/`)
 - Individual stages: `make download verify extract inventory binary-info
-  extract-flat flat-analyze disassemble strings dat-survey trace names`
+  extract-flat flat-analyze disassemble strings dat-survey trace names messages`
+
+## Running the game
+
+The agent may launch the actual game in DOSBox to observe behaviour. Use the
+developer's installed setup, run from the DOSBox directory so the relative
+`-conf` paths resolve:
+
+```
+& "F:\Games\Fragile Allegiance\DOSBOX\DOSBox.exe" -conf "..\dosboxFR.conf" -conf "..\dosboxFR_single.conf" -noconsole -c exit
+```
+
+Run it with `workdir` set to `F:\Games\Fragile Allegiance\DOSBOX`. The game
+must never be automated, modded, or patched; it is only observed (and any
+observation notes go into `docs/`). This is a black-box observation tool for
+mechanics analysis, not part of the `make` pipeline.
 
 ## Pipeline overview
 
@@ -103,6 +118,11 @@ Stage numbering in `scripts/`:
 - `10` DOSBox(-X) runtime tracing (INT 21h/file-open log, disc check)
 - `11` apply curated names from `config/ghidra/rename-map.json` to a copy of
   the decompiled C in `build/named/`
+- `15` (`scripts/15_messages_catalog.py`, `make messages`) catalog every
+  message the player can receive — the AMERICAN.TXT message-window
+  notification block and the whole AMERICAN.SCR diplomatic dialogue bank —
+  into `build/reports/messages-catalog.md/.json` (string extracts; never
+  committed)
 
 Analysis conclusions are written by us into `docs/dataformats/` and
 `docs/mechanics/`; raw decompiled output stays in `build/`. Never edit the

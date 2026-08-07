@@ -38,6 +38,12 @@ project.
 - [Asteroid spawning — implementation instructions](asteroid-spawning.md) —
   the build brief for the asteroid field: creation, movement, population
   maintenance, and the colony surface.
+- [Vehicles](vehicles.md) — the craft the player builds: the roster, the
+  Ship Yards and Space Dock, hardpoints and weapons, and the fleet rules.
+- [Missiles and how they are fired](missiles.md) — the thirteen missile
+  kinds, where they are stored, and how ships fire them at asteroids.
+- [Ship-to-ship combat](ship-combat.md) — how a ship's weapons fire at other
+  ships: ammunition, fire delays, and what determines a hit.
 
 The technical analysis (addresses, disassembly references, open questions) is
 intentionally **not** published here; it stays in the repository for

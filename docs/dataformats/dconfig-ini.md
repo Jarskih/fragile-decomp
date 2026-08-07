@@ -71,3 +71,8 @@ or a relocation decode resolves this.
 - `build/reports/inventory.json` — ISO file list (no DCONFIG.INI shipped).
 - `docs/mechanics/asteroid-creation.md` — the parallel "missing static data"
   anomaly.
+- `docs/dataformats/gog-build-data.md` — the GOG build differs: it reads
+  `CONFIG.INI` (not DCONFIG.INI) and its key set uses `AsteroidDensity`
+  (no `c` prefix); the GOG install tree's written `CONFIG.INI`
+  (`ArenaSize=0`, `AsteroidDensity=1`, `ArenaAtmosphere=1`, `Aliens=0x0`)
+  confirms the 0-based value encoding.

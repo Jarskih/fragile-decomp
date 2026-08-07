@@ -535,7 +535,15 @@ without a runtime trace:
 3. The code bytes genuinely serve double duty (least likely).
 
 Until a DOSBox-X trace settles this, treat every "value copied from
-table 0xa3xx" claim as **unverified**.
+table 0xa3xx" claim as **unverified**. **Update (2026-08-07): the GOG
+retail build ships the ore/starting-value table as real static data at
+flat 0x8FCE2 (11 rows × 14 B, `{p, lo, hi, v1, v2, v3, tag}` — p/lo/hi
+match the 0xa3d4 reader's shape), plus the cost-bearing stat records at
+0x8F680 and the type-id list at 0x8F880.** `make gog-constants` decodes
+them; `make dump-constants` verifies the table is byte-identical in the
+running game's memory (see `docs/dataformats/gog-build-data.md`). The
+GOG build's values are therefore established facts for that build; the
+ISO build's runtime layout remains open.
 
 ## References
 

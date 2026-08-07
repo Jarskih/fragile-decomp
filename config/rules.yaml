@@ -21,6 +21,12 @@ paths:
   strings_dir: build/reports/strings
   flat_dir: build/flat
   hash_manifest: iso.sha256
+  # GOG retail install tree (gitignored analysis input, like iso/).
+  # Stage 05b (`make gog-flat`) extracts and verifies its FRAGILE.EXE build,
+  # which carries the gameplay stat tables as real data (see
+  # docs/dataformats/gog-build-data.md).
+  gog_dir: Fragile Allegiance
+  gog_exe: Fragile Allegiance/FRAGILE.EXE
 
 # Reference ISO source(s) on archive.org. All downloads are optional; you
 # may place your own image in iso/ instead and skip `make download`.
@@ -48,7 +54,7 @@ iso:
 # Stage names: download verify extract inventory binary-info extract-flat
 #              flat-analyze runtime disassemble strings dat-survey trace names
 tools:
-  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, extract-flat, flat-analyze, runtime, disassemble, strings, dat-survey, trace, names] }
+  python3:   { min: "3.9",  version_flag: "--version",  required: true,  stages: [download, verify, extract, inventory, binary-info, extract-flat, flat-analyze, runtime, disassemble, strings, dat-survey, trace, names, gog-flat, gog-constants, dump-constants] }
   curl:      { min: "7.0",  version_flag: "--version",  required: true,  stages: [download] }
   7z:        { min: "16.0", version_flag: "i",          required: true,  stages: [extract] }
   bsdtar:    { min: "3.0",  version_flag: "--version",  required: true,  stages: [extract] }
@@ -58,6 +64,8 @@ tools:
   file:      { min: "5.0",  version_flag: "--version",  required: true,  stages: [inventory, dat-survey] }
   strings:   { min: "2.0",  version_flag: "--version",  required: true,  stages: [strings] }
   ndisasm:   { min: "2.0",  version_flag: "-v",         required: false, stages: [disassemble] }
+  objcopy:   { min: "2.0",  version_flag: "--version",  required: true,  stages: [flat-disasm] }
+  objdump:   { min: "2.0",  version_flag: "--version",  required: true,  stages: [flat-disasm] }
   ghidra:    { min: "0",    version_flag: "",           required: true,  external: true, note: "GHIDRA_HOME, analyzeHeadless on PATH, or `ghidra` on PATH", stages: [disassemble] }
   dosbox-x:  { min: "0",    version_flag: "--version",  required: false, external: true, note: "dosbox-x / dosbox / DOSBox-X flatpak (com.dosbox_x.DOSBox-X)", stages: [trace] }
 

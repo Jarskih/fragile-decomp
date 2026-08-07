@@ -9,7 +9,8 @@ PY      := python3
 SCRIPTS := scripts
 
 .PHONY: all check download verify extract inventory binary-info disassemble \
-        strings dat-survey trace extract-flat flat-analyze runtime names clean help
+        strings dat-survey trace memdump memdump-all extract-flat flat-analyze flat-disasm runtime names \
+        gog-flat gog-constants dump-constants messages clean help
 
 help:
 	@echo "fragile-decomp pipeline targets:"
@@ -24,14 +25,31 @@ help:
 	@echo "  make runtime        replay the DOS/4G relocation stream over the flat"
 	@echo "                      image; verifies the image is pre-linked at base 0"
 	@echo "                      and emits build/flat/FRAGILE.EXE.runtime.flat"
+	@echo "  make flat-disasm    objdump the flat image to build/flat/full_disasm.txt"
+	@echo "                      (addresses are image-relative, same as stage 07)"
 	@echo "  make disassemble    Ghidra headless import/analyze/export to build/decomp"
 	@echo "                      (9 DOS programs + the flat DOS/4G image at base 0)"
 	@echo "  make strings        strings sweep over extracted files"
 	@echo "  make dat-survey     data-file format survey (magic/entropy/probes)"
 	@echo "  make trace          DOSBox(-X) runtime trace (INT 21h/file-open log)"
-	@echo "  make names          mirror decompiled.c to build/named/ with curated"
-	@echo "                      names from config/ghidra/rename-map.json"
-	@echo "  make all            full pipeline (download..names)"
+	@echo "  make memdump        read-only memory snapshot of the game running under"
+	@echo "                      DOSBox(-X) -> build/dumps (powershell, Windows side)"
+	@echo "  make memdump-all    memdump + every committed region >= 64 KiB"
+	@echo "                      (captures conventional/UMB memory; needed for the"
+	@echo "                      DS data segment the stat tables live in)"
+	@echo "  make gog-flat       slice + verify the GOG build's DOS/4G flat image"
+	@echo "                      (build/flat/FRAGILE.EXE.gog.flat; needs the gitignored"
+	@echo "                      'Fragile Allegiance/' retail install tree)"
+	@echo "  make gog-constants  decode the gameplay stat tables of the GOG build"
+	@echo "                      (ore values, costs, stat records) -> build/reports/"
+	@echo "  make dump-constants decode a memdump: locate the image, derive the load"
+	@echo "                      bases, cross-check the tables at their runtime addresses"
+ 	@echo "  make names          mirror decompiled.c to build/named/ with curated"
+ 	@echo "                      names from config/ghidra/rename-map.json"
+ 	@echo "  make messages       catalog of every message the player can receive"
+ 	@echo "                      (AMERICAN.TXT notifications + AMERICAN.SCR dialogue)"
+ 	@echo "                      -> build/reports/messages-catalog.md/.json"
+ 	@echo "  make all            full pipeline (download..names)"
 	@echo "  make clean          wipe build/ (derived artifacts only; iso/ untouched)"
 
 check:
@@ -66,6 +84,9 @@ flat-analyze: check-flat-analyze extract-flat
 runtime: check-runtime extract-flat
 	$(PY) $(SCRIPTS)/build_runtime.py
 
+flat-disasm: check-flat-disasm extract-flat
+	./$(SCRIPTS)/06c_flat_disasm.sh
+
 disassemble: check-disassemble binary-info flat-analyze
 	./$(SCRIPTS)/07_ghidra_headless.sh
 
@@ -78,10 +99,35 @@ dat-survey: check-dat-survey inventory
 trace: check-trace extract
 	./$(SCRIPTS)/10_dosbox_trace.sh
 
+# Windows-only: snapshots the emulated RAM of a running DOSBox(-X) via
+# ReadProcessMemory (read-only observation). The game must be running first.
+memdump:
+	powershell.exe -NoProfile -ExecutionPolicy Bypass -File $(SCRIPTS)/memdump.ps1
+
+# Windows-only: like memdump, but also captures every committed region >= 64 KiB
+# (conventional/UMB memory, where the game's DS data segment lives).
+memdump-all:
+	powershell.exe -NoProfile -ExecutionPolicy Bypass -File $(SCRIPTS)/memdump.ps1 -AllSmall
+
+gog-flat: check-gog-flat
+	$(PY) $(SCRIPTS)/05b_extract_gog_flat.py
+
+gog-constants: check-gog-constants gog-flat
+	$(PY) $(SCRIPTS)/12_gog_constants.py
+
+dump-constants: check-dump-constants gog-flat
+	$(PY) $(SCRIPTS)/13_dump_constants.py
+
+stats: check-dump-constants gog-flat
+	$(PY) $(SCRIPTS)/14_extract_stats.py
+
 names:
 	$(PY) $(SCRIPTS)/11_apply_names.py
 
-all: download verify extract inventory binary-info extract-flat flat-analyze runtime disassemble strings dat-survey trace names
+messages: check-strings extract
+	$(PY) $(SCRIPTS)/15_messages_catalog.py
+
+all: download verify extract inventory binary-info extract-flat flat-analyze runtime flat-disasm disassemble strings dat-survey trace names messages
 	@echo "Pipeline finished. Reports in build/reports/, decompiled output in build/decomp/, named view in build/named/."
 
 clean:

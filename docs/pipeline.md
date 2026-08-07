@@ -35,6 +35,14 @@ build_runtime.py                 build/flat/FRAGILE.EXE.runtime.flat (loader vie
 docs/mechanics/, docs/dataformats/      OUR written conclusions (committed)
 ```
 
+Optional stages (inputs other than the ISO):
+
+```
+05b_extract_gog_flat.py          build/flat/FRAGILE.EXE.gog.flat (GOG build)
+12_gog_constants.py              build/reports/gog_constants.* (stat tables)
+memdump.ps1  +  13_dump_constants.py   build/dumps/ -> build/reports/dump_constants.*
+```
+
 ## Stage details
 
 ### 00 — download (optional)
@@ -136,6 +144,33 @@ address), so the same register name can mean different things in different
 functions. Never edit `build/decomp/` by hand — renames live in the map so the
 stage stays reproducible. `make names` is fast to iterate: editing the map and
 re-running it re-applies the names without re-running Ghidra.
+
+### 05b — GOG build flat (optional, `make gog-flat`)
+The GOG retail install tree (`Fragile Allegiance/`, gitignored analysis
+input) ships a *different build* of FRAGILE.EXE whose gameplay stat tables
+are real static data (the ISO build's are not — see `gog-build-data.md`).
+Stage 05b locates every DOS/4G anchor dynamically (no hardcoded offsets),
+slices the flat image, and cross-checks all 261 record streams (34,921
+fields verified, 1 off-buffer). Output: `build/flat/FRAGILE.EXE.gog.flat`
++ `build/reports/flat_extract_gog.*`.
+
+### 12 — GOG constants (optional, `make gog-constants`)
+Decodes the gameplay constant tables from the GOG flat: the 11-row
+ore/starting-value table (p/lo/hi), the cost-bearing stat records (ids
+0x1e..0x27 + 0x37, costs 10000..30000), the type-id list and the remaining
+table region (roles unidentified, raw). Every table is shape-checked and
+fails loudly on mismatch; the flat sha256 is pinned. Output:
+`build/reports/gog_constants.*` + `gog_data_region.hex`.
+
+### 13 — dump constants (optional, `make memdump` + `make dump-constants`)
+`memdump.ps1` snapshots the running game's emulated RAM read-only into
+`build/dumps/`; stage 13 locates the loaded image, derives the per-object
+relocation bases (obj 3 = 0x24E000, obj 1 = 0x1C9000, obj 2 = 0x14F000 for
+the GOG build), reads the runtime DS data selectors (the 7 `02`-record
+sites), cross-checks the static tables at their runtime addresses
+(byte-identical), and catalogs the runtime-written regions (player names,
+generated palette ramps). Output: `build/reports/dump_constants.*` +
+`build/flat/FRAGILE.EXE.gog.runtime.bin`.
 
 ## Reading the reports
 
