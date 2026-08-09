@@ -46,8 +46,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fragile_decomp_lib as lib
-import dump_constants as dc13  # stage 13 helpers: image locate, reloc bases, write diff
-
+import importlib
+dc13 = importlib.import_module("13_dump_constants")  # stage 13 helpers: image locate, reloc bases, write diff
 FLAT = "flat/FRAGILE.EXE.gog.flat"
 FLAT_SHA = "4e8d2d964e04197bba28dbd843a5bf334131aaf9c8244c57df9fc6187906a9d4"
 

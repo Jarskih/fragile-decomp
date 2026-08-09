@@ -1,9 +1,11 @@
 # Weapon and turret numbers: what is known, and what blocks the rest
 
 Status: **behaviour confirmed; the fire delay is now VERIFIED (15 or 40
-game ticks, see below); the remaining numeric values (damage, build costs,
-power use, ranges) are NOT statically extractable from the reference flat —
-this is now a proven negative result, not a gap in effort.** See "The
+game ticks, see below); the item-price catalog is now CONFIRMED static data
+in both builds (see "The item price catalog" below); the remaining numeric
+values (damage, per-type build costs, power use, ranges) are NOT statically
+extractable from the reference flat — this is now a proven negative result,
+not a gap in effort.** See "The
 base-search campaign" below for the exhaustive search that closes the
 question, and "Data files on the ISO" for the equally negative file-side
 survey. **Update (2026-08-07): the GOG retail build ships the same stat
@@ -240,6 +242,51 @@ The two per-type table families that looked like weapon stats are NOT:
 - `0x39040` (stride 4) — a per-type **text-pointer table** into the loaded
   AMERICAN.TXT buffer (runtime 0x6edxxx = the description strings; read at
   0x9be8 with `0x39040(,%type,4)`).
+
+## The item price catalog — CONFIRMED static data in both builds
+
+**Update (2026-08-08).** The Ship Yards item-price tables are real static
+data in **both** builds — the earlier "runtime-only" conclusion applies to
+the DS-displacement stat families (0xa6ba etc.), not to this catalog. Found
+while mapping the weapons/modules prices from a shipyard-screen memdump
+(`build/dumps/ram_1ce2a000.bin`, image at dump offset 0x1c901c; all tables
+byte-identical flat vs runtime).
+
+- **The 16 weapon/module prices** — GOG flat `0x90A0A`, ISO flat `0x990F4`.
+  16 u32s `{price, 0}` pairs. Index 0..15 in the game's own order
+  (`_TEXT/AMERICAN.TXT` 120957..121141): Ion Cannon 1000, Disruptor 6000,
+  Napalm Orb 4000, Chaos Bomb 12000, Vortex Mine 5000, Laser 1000, Photon
+  Cannon 4500, Plasma Cannon 9000, Static Inducer 4500, Warp Generator 9000,
+  Deflector 12000, Shield x10 1500, x20 3000, x30 5000, x40 6500, x50 8000.
+  Order + Ion Cannon's 1000 Cr verified against the live Ship Yards screen
+  (DOSBox observation, 2026-08-08).
+- **Shield armour values** — GOG `0x90A80`/`0x90AC0`: `{10, 20, 30, 40, 50}`
+  (Shield x10..x50 armour points; matches the game text "Shield x40: +40
+  armour points", "Shield x50: +50 armour points").
+- **Per-item records** — GOG `0x90B60`, stride 0x14: `{u16 ×6, text-offset
+  u16, days u16, price u32}`; the text-offset column (2, 260, 514, 774,
+  1026, …) points into the Ship Yards help text in the loaded TXT. The
+  records' prices (6000, 12000, 3000, 15000, 34000, 24000, 60000, 150000,
+  300000, …) are a second price family — the craft (ships) list, not yet
+  mapped to names (the 60000 record = 60 days matches the game text's
+  Shield x50 mention only if read as a blueprint price; see below).
+- **Blueprint price pairs** — GOG `0xB72E4` / ISO `0xC1638`: `{price u32,
+  type u32}` pairs, ~30-53 entries, prices 15000..500000, type ids 0..35
+  (with -1 sentinels; the GOG table = the ISO table's tail — ISO carries
+  pairs for 14 extra type ids). 60000 appears twice (type 15 and 28) —
+  candidate blueprint prices for the Shield x40/x50 blueprints ("…all for a
+  mere 60,000 Cr too!" — TXT 135718, the Shield x50 blueprint description).
+  The 12-record table at GOG `0x8F984` / ISO `0x9806C` (`{price u32, 3
+  packed stat bytes, days u32}`) shares values (150000, 300000) with the
+  per-item records and may be the same family in a different layout; role
+  still open.
+- The 0x90C20..0x91800 region holds further per-type tables (values like
+  {512, 20}, {256, 30}, 65535/24575 limits, and per-type records with
+  `{flag, type}` headers 0..16) — weapon/turret stats candidates, not yet
+  decoded.
+
+Open: which Ship Yards items the 0x90B60 records are (list order from the
+live screen would settle it), and the exact role of the 0xB72E4 pair table.
 
 ## References
 

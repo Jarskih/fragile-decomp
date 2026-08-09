@@ -124,6 +124,12 @@ unidentified (build time / hit points / power / range candidates).
 - 0x8FEC4: u16s 205,200,210,185,190,195,150x6.
 - 0x8FF40/0x8FF78: 4-byte rows; 0x8FF48: 12 code pointers.
 - 0x90000: {u16,u16} pairs (4400,8212), (4000,6154), … cost-like.
+- 0x90A0A / 0x90B60 / 0x90C20: **the Ship Yards item catalog** — 16
+  weapon/module prices (1000..12000 Cr; verified against the live Ship
+  Yards screen), the Shield x10..x50 armour values {10,20,30,40,50}, and
+  per-item records `{u16 ×6, text-offset, days, price u32}` (see
+  `docs/mechanics/weapon-and-turret-numbers.md`, "The item price catalog").
+  The ISO build ships the same tables at 0x990F4 / 0x99164.
 - 0x91800: 4-byte rows of small values.
 - 0x8F2C0/0x8F2D0: two 16-row permutation tables over 0..3.
 

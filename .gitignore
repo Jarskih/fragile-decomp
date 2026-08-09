@@ -16,6 +16,10 @@
 /iso/
 /build/
 
+# The GOG retail install tree (original content; see AGENTS.md rule 1).
+# It is analysis input only, like iso/ — never commit it.
+/Fragile Allegiance/
+
 # Common disc-image containers (in case a stray copy exists anywhere)
 *.iso
 *.bin

@@ -49,12 +49,22 @@ SELECTOR_SITES = [0x58589, 0x58754, 0x5ECCB, 0x6061D, 0x7EFC4, 0x7F08F,
 GR = struct.Struct("<BBHB")
 
 
-def find_dump(cfg: dict) -> Path | None:
+def find_dump(cfg: dict, flat: bytes) -> Path | None:
+    """The dump that actually contains the loaded game image.
+
+    `make memdump-all` writes one file per emulated/host region; the marker
+    region (with the image) is not the alphabetically last one, and older
+    runs leave their ram_*.bin files behind, so scan for the image trap
+    signature directly (newest matching dump wins)."""
     ddir = lib._path(cfg, "build_dir") / "dumps"
     if not ddir.is_dir():
         return None
-    cands = sorted(ddir.glob("ram_*.bin"))
-    return cands[-1] if cands else None
+    for f in sorted(ddir.glob("ram_*.bin"), key=lambda p: p.stat().st_mtime,
+                    reverse=True):
+        data = f.read_bytes()
+        if locate_image(data, flat) is not None:
+            return f
+    return None
 
 
 def locate_image(data: bytes, flat: bytes) -> int | None:
@@ -227,11 +237,6 @@ def rt_off_back(ro: int) -> int:
 
 def main() -> int:
     cfg = lib.load_config()
-    dump = find_dump(cfg)
-    if dump is None:
-        lib.note("no build/dumps/ram_*.bin found; run `make memdump` while "
-                 "the game is running under DOSBox(-X) first", "red")
-        return 2
     flat_path = lib.flat_dir(cfg) / "FRAGILE.EXE.gog.flat"
     if not flat_path.is_file():
         lib.note("run `make gog-flat` first", "red")
@@ -239,6 +244,12 @@ def main() -> int:
     flat = flat_path.read_bytes()
     if lib.sha256_bytes(flat) != FLAT_SHA:
         lib.note("gog flat sha256 mismatch — run `make gog-flat`", "red")
+        return 2
+    dump = find_dump(cfg, flat)
+    if dump is None:
+        lib.note("no build/dumps/ram_*.bin contains the loaded game image; "
+                 "run `make memdump` while the game is running under "
+                 "DOSBox(-X) first", "red")
         return 2
     data = dump.read_bytes()
     img = locate_image(data, flat)

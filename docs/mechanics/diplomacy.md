@@ -1,11 +1,14 @@
 # Diplomacy: opinions, pacts, treaties and offers
 
-Status: probing (reference-build static disassembly; runtime trace still
-deferred — most roles here are read from the recovered bodies and are
-cross-checked against the game's own text resources, which use the vocabulary
-Non-Aggression Pact / Joint Combat Treaty / tribute / fines).
+Status: probing (reference-build static disassembly + first GOG-build runtime
+dump decoded — see "Runtime verification" below; the pact/treaty node
+machinery roles are read from the recovered bodies and cross-checked against
+the game's own text resources, which use the vocabulary Non-Aggression Pact /
+Joint Combat Treaty / tribute / fines).
 Source: `build/named/FRAGILE.EXE.flat/decompiled.c` (reference ISO build; the
-GOG-build addresses in `main-loop.md` do **not** match this image).
+GOG-build addresses in `main-loop.md` do **not** match this image) and
+`build/dumps/ram_1cd67000.bin` (GOG build under DOSBox, game at the
+diplomacy screen, dumped 2026-08-07).
 
 This note documents how race-to-race diplomacy is implemented: the per-pair
 opinion matrices, the pact/treaty node machinery, the incident/violation
@@ -61,13 +64,13 @@ are unconfirmed**; the matrix cells themselves are runtime data.
 | 0xd1cc / 0xd1d0 | 4 | per-race approval history ring (12 ints, shifted by `race_approval_pct` 0x5e14 and `FUN_00005ed4`); 0xd1d0 = newest; the per-race "approval score" | 0x5e14, 0x5ed4 |
 | 0xd1fc | 4 | per-race int, second score (military?) read by `race_military_diff_pct` (0x5fa4); writer unconfirmed | 0x5fa4 |
 | 0xd210 / 0xd212 | 2 | per-race averaged asteroid values written by 0x5e14 (position averages) | 0x5e14 |
-| 0xd218 / 0xd220 | 4 | per-race intrusive lists: 0xd218 = structures/units list (walked by 0x9a34 fleet counting), 0xd220 = fleet/units list (walked by `military_pressure_value` 0x6ae4) | 0x9a34, 0x6ae4 |
+| 0xd218 / 0xd220 | 4 | per-race intrusive lists: 0xd218 = structures/units list (walked by `ai_economy_tick` 0x9a34 fleet counting), 0xd220 = fleet/units list (walked by `military_pressure_value` 0x6ae4) | 0x9a34, 0x6ae4 |
 | 0xd228 | 2-per-row bitset | "war/hostile" bits: set by `war_node_create` (flag&1), cleared by `pact_bits_clear` (0x4b24); blocks the natural opinion boost (0x44e4) | 0x48d4, 0x4b24, 0x44e4 |
 | 0xd22a | 2-per-row bitset | "formal treaty/embargo" bits: set by `war_node_create` (flag&2), cleared by 0x4b24; gates the hostile-response path in `relations_opinion_penalize`/`race_count_units` | 0x48d4, 0x4b24, 0x5914, 0x59a4 |
 | 0xd230 | 2-per-row bitset | "mutual pact active" (bit per column race, both directions required by `pact_mutual_check` 0x73c4): set by 0x56c4 when 0xd0a6 != 0, used by the AI candidate filters | 0x73c4, 0x56c4, 0x6544, 0x6664, 0x6ef4 |
 | 0xd232 / 0xd236 / 0xd250 / 0xd252 / 0xd254 | 2 | per-race countdowns: 0xd232/0xd236 swept by the endgame driver 0x16264 (attack / other sweeps), 0xd250 agenda cooldown, 0xd252 war-decision timer, 0xd254 pact-decision timer | 0x16264, 0xf064, 0xf114, 0x15f14, 0x15f84 |
 | 0xd238 | 1 | per-race byte gating the 12-tick "declared intent" message sweep (0x29e4): nonzero → one-shot message DAT_0003a198 for the player race; writer unconfirmed | 0x29e4 |
-| 0xd239 | 1 | per-race flags: bit0 = race alive/active (checked everywhere), bit1 = "currently being AI-processed" (rotation in 0x9a34), bit2 = fixed military agenda set (0xf064/0xf114), bit3 = endgame processing rotation (0x16264) | 0x9a34, 0xf064, 0xf114, 0x16264 |
+| 0xd239 | 1 | per-race flags: bit0 = race alive/active (checked everywhere), bit1 = "currently being AI-processed" (rotation in `ai_economy_tick` 0x9a34), bit2 = fixed military agenda set (0xf064/0xf114), bit3 = endgame processing rotation (0x16264) | 0x9a34, 0xf064, 0xf114, 0x16264 |
 | 0xd244 / 0xd245 / 0xd248 / 0xd24c | 1/1/4/4 | fixed-agenda record: kind (8 defensive / 9 offensive), target race, tick set, target asteroid pointer | 0xf064, 0xf114 |
 | 0xd258 / 0xd25c | 4 | per-race "last offer target" + expiry tick (cooldown). Set by `offer_cooldown_set` (0x4fe24) and the AI pickers; cleared when tick > 0xd25c (0x15f14) | 0x4fe24, 0x6664, 0x6ef4, 0x15f14 |
 | 0xd200 | 1 | per-pair pact counters: +1 on `relations_opinion_sub`, −1 on `pact_node_apply_paid`; no other readers found (?) | 0x4fe4, 0x4ea4 |
@@ -182,18 +185,19 @@ Two parallel picker/test pairs run for alien races 9..14 (race 0xd skipped):
   clears 0xd258/0xd25c cooldowns) → `ai_war_offer_pick` (0x6ef4) →
   `ai_war_accept_test` (0x6cc4) → `war_node_create`.
 
-The pickers: build the per-race "best relations" table at 0x5bf4c via
-`relations_table_fill` (0x5ff4), filter candidates by race-active (0xd239&1),
-mutual pact bit (0xd230 via `pact_mutual_check` 0x73c4) and no pending node
-(`pact_pair_node_check` 0x7424 / `treaty_node_check` 0x7474), score with
-`relations_value_distance_penalty` (0x61f4: relations minus a distance-angle
-penalty) or `relations_value_distance_penalty_b` (0x6a54) and
+The pickers: build the per-race "best relations" table `g_relations_best_table`
+(0x5bf4c) via `relations_table_fill` (0x5ff4), filter candidates by race-active
+(0xd239&1), mutual pact bit (0xd230 via `pact_mutual_check` 0x73c4) and no
+pending node (`pact_pair_node_check` 0x7424 / `treaty_node_check` 0x7474),
+score with `relations_value_distance_penalty` (0x61f4: relations minus a
+distance-angle penalty) or `relations_value_distance_penalty_b` (0x6a54) and
 `military_pressure_value` (0x6ae4: −0x14 per enemy fleet in the 0xd220 list,
 −10 per enemy asteroid flying the other's flag at +0x2a), and pick one
 weighted by `rng_next`. If the picked race is an empire race (1..8) the
 offer is instead scheduled via `alien_offer_schedule` (0x44484) /
 `alien_fleet_schedule` (0x444f4) and the 0xd258/0xd25c cooldown is armed
-(0x28 = 40 ticks).
+(0x28 = 40 ticks). The picker staging globals are `g_offer_race_a/b`,
+`g_offer_target_race`, `g_offer_amount_a/b`, `g_offer_attitude_flags`.
 
 The accept tests (0x62a4, 0x6cc4) return 1 accept / 2 counter-propose / 0
 reject. Inputs: the current pair percentage (`relations_pair_pct` 0x5f04:
@@ -233,6 +237,73 @@ removes all 0xc424 nodes involving it (clearing their 0xd228/0xd22a bits via
 `pact_bits_clear`), restores opinions for 0xc42c nodes involving it, and
 posts the "pact with X is over" message (DAT_0003c70c) when the dead race
 was the treaty target.
+
+## Runtime verification (GOG build, memdump 2026-08-07)
+
+The GOG build runs under the developer's DOSBox setup; `make memdump` snapshots
+the emulated RAM. The dump used here is `build/dumps/ram_1cd67000.bin`
+(aliased by `ram_1cdfd000.bin` / `ram_1ce2a000.bin`), taken with the game at
+the diplomacy screen.
+
+Addressing (all verified against the dump; see `docs/mechanics/weapon-and-
+turret-numbers.md` and stage 13 for the method):
+
+- the loaded image starts at dump offset 0x1c901c (image-start trap + entry
+  prologue match the static GOG flat; `build/flat/FRAGILE.EXE.gog.flat`).
+- the DOS/4G stub page (flat 0x85000..0x86000) is not mapped at runtime:
+  everything ≥ 0x86000 shifts down by 0x1000 (`rt_off`).
+- the relations block is referenced through **displacement operands that the
+  loader patches with the data object's base (obj 3, dominant delta
+  0x24e000)**; the live block therefore reads at dump offset
+  **0x24e000 + flat-offset** (the same flat addresses at obj 1's delta hold
+  the static image bytes, not live state).
+
+The GOG relations block (row stride 0x208, races 1..14; all values below from
+the live dump, obj-3 base):
+
+- **opinion matrix at 0xc9aa** — signed shorts on a scale where 0x7fff = +1.0
+  and 0x8000 = −1.0 (the 0x7fff clamp from the 0x55b4 disassembly). Rows 1..8
+  (the absent "empire" slots of this scenario) are all zero; the six active
+  alien races 9..14 read (columns 1..14, units of 1/32767):
+
+  | row | values |
+  |-----|--------|
+  | 9  | 0, −0.2 ×8 (cols 1-8), 0 (self), −0.15, **−1.0**, **−1.0**, −0.1 |
+  | 10 | 0, −0.2 ×8, −0.3, 0, −0.2, **−1.0**, +0.2 |
+  | 11 | 0, **−1.0**, −0.15 ×7, **−1.0**, −0.1, 0, **−1.0**, −0.2 |
+  | 12 | 0, −0.2 ×8, **−1.0**, **−1.0**, **−1.0**, 0, +0.4 |
+  | 13 | 0, +0.4 ×8, +0.1, +0.3, −0.1, +0.5, 0 |
+  | 14 | 0, −0.3 ×8, −0.4, −0.15, **−1.0**, −0.15, −0.3 |
+
+  The −1.0 (0x8000) cells are the war state (pairs 9-11, 9-12, 10-12, 11-12,
+  11-2, 14-11 — the last two one-sided), confirming the 0x8000 clamp of the
+  war-declaration path. Race 13 is the only row without a −1.0 cell and is
+  positive to everyone (+0.4 to the empire slots, +0.5 to race 12): the
+  scenario's starting dispositions. The directed opinions are asymmetric
+  (e.g. 13→9 = +0.1 vs 9→13 = −0.1).
+
+- **the paired matrix at 0xc9c8** (0x1e bytes earlier in each row — the
+  second component of the pair, cf. the reference build's d086/d068 pair):
+  same scenario pattern with per-cell differences (row 14 col 9 = 0xCCCE,
+  row 13 col 10 = 0x7fff, …); the 0x55b4 code uses 0xc9c8 as the
+  "relation" input multiplied by the per-column rate 0xc9e6 into the
+  0xc9aa accumulator, so the two matrices are the drift driver and the
+  clamped opinion.
+- **known-bits at 0xcb54** (per-row words): row 1 = 0x303; rows 9..14 =
+  0x1a0 / 0x304 / 0x1ca / 0x26c / 0x37c / 0x245 — each active race's bit
+  mask of other races it has state with; rows 2..8 = 0.
+- **accumulators**: 0xca40 all zero; 0xca7c = 2348 on every row (the per-row
+  relation accumulator); **g_relations_target 0xc9ac all zero** (no AI
+  relation target set at dump time).
+- The per-type threshold table at 0x967c (stride 0x1c) reads as real data in
+  the dump: row 0 = [400, 0, 1000, 0, 3000, 0, …] and rows 2+ carry plausible
+  cost-like values (25000/15000/10000/20000, 2000/4000/12000…) — the GOG
+  build's "tables are real data in the flat" holds for this block too.
+
+This runtime pass confirms the static reading: two directed opinion
+components per pair, 0x7fff/0x8000 clamps, per-race rows, war state as −1.0,
+and the empire-vs-alien row split (the six AMERICAN.SCR ambassadors are the
+active races; the 1..8 slots are the federation/other slots, zero here).
 
 ## Open questions
 
