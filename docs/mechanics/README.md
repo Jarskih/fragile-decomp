@@ -47,6 +47,10 @@ this directory is copied game data — it is our reconstruction, in our words.
   respawn rule, movement and types (from savegame diffs).
 - `ore-and-mining.md` — the ten ores, the three rarity tiers, mine buildings,
   ore generation at asteroid creation, deposit placement, mining depletion.
+- `scitek-blueprints.md` — the game's technology progression (there is no
+  research mechanic): the full 38-item Sci-Tek brochure catalogue split into
+  permanent upgrades / buildings / ships / missiles / hardpoints, what each
+  item does, the ordering-and-delivery flow, and the blueprint price tables.
 - `vehicles.md` — the craft the player builds: the roster from the game's
   text resource, construction (Ship Yards / Orbital Space Dock / blueprints),
   hardpoints, fleet rules, and the status of the per-class stat tables.
@@ -58,6 +62,13 @@ this directory is copied game data — it is our reconstruction, in our words.
   the game text, and the reference-build defence state machine; per-turret
   damage/range numbers still open (tables-in-code anomaly, runtime trace
   deferred).
+- `weapons.md` — the firing pipeline: shot pools, homing, the fire gate and
+  the (live, corrected) 0x200e4-family combat machine.
+- `ship-hit-formula.md` — what makes a shot hit: the arc/radius sweep
+  (no roll), the per-tick strike roll and successor chaining of the surface
+  combat machine, the direct-hit path, the aim-spread computation, and the
+  distance-based strike-chance percentage; the per-race stat byte values
+  remain runtime-only.
 - `asteroid-creation.md`, `rng.md` — reference-build notes (see
   `asteroid-spawning.md` for the GOG address table).
 

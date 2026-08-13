@@ -171,7 +171,23 @@ only way to read them in the ISO build remains a runtime memory trace.
 same stat families as real static tables (stage 12 / `gog-build-data.md`),
 so the numbers *are* statically readable from that build.
 
-## The 0x20000-family "combat tick" is unreferenced
+## The 0x20000-family "combat tick" is live (corrected)
+
+**Update (2026-08-13): the "unreferenced, probably stale" conclusion below
+is overturned.** The per-subtype combat handlers at `0x200e4`/`0x2049c`/
+`0x20564`/`0x2059e`/`0x20809` (the `rng_next(100) < 0xc095[subtype]` strike
+roll)/`0x20b51`/`0x210a7` and the sweep helpers `0x1fd34`/`0x1fde4` have no
+static callers because they are dispatched through **runtime-filled pointer
+tables** (`combat_shot_spawn` 0x1ffc4 loads the shot's handler from `0xbff8`+4;
+the per-type dispatch reads `0xbfe4[0xba8a[type*16]]`) — the live chain runs
+`0x51664` → `0x52b74` → `combat_shot_spawn` → the handler family. The GOG
+retail build has the twin machine (handlers 0x20094..0x20b54, spawner
+`obj_spawn_child` 0x1fbc4) live as well. The hit-resolution semantics of the
+machine are now documented in `docs/mechanics/ship-hit-formula.md`. The
+blocker below (runtime-only per-race stat bytes) still stands for the
+**values**, not the formulas.
+
+The earlier text, kept for the record:
 
 The per-subtype combat handlers at `0x200e4`/`0x2049c`/`0x20564`/`0x2059e`/
 `0x20809` (the `rng_next(100) < 0xc095[subtype]` strike roll)/`0x20b51`/
@@ -179,13 +195,9 @@ The per-subtype combat handlers at `0x200e4`/`0x2049c`/`0x20564`/`0x2059e`/
 callers** in the full disassembly (checked line-by-line). Their stat reads
 land on instruction bytes (above), and no chain of pointer tables reaches
 them (the known dispatch table at `0x71dac` points into `0x7c000` code,
-not `0x20000`). They are therefore **probably stale code** from an earlier
-layout. Consequence for analysis: the strike-roll / heading-roll accuracy
-mechanics found in that family are **not confirmed live**; the live combat
-path is the slot machinery (`0x14384`/`0x14114`/`0x4a374`/`0x4a3b4`) plus
-the event handler `0x52b74` (event types 0..2 → cell scan `0x1aea4`, type 4
-→ shot spawn `0x1ffc4`), and its accuracy mechanics sit inside the
-runtime-only callback table `0xa4ac` — unreachable statically.
+not `0x20000`). **That reasoning was wrong** — see the correction above:
+the dispatch tables themselves (`0xbfe4`, `0xbff8`, `0xba8a`) are the
+runtime-written kind, so "no static callers" says nothing about liveness.
 
 ## Resolution paths
 
@@ -197,6 +209,12 @@ runtime-only callback table `0xa4ac` — unreachable statically.
    cross-checks the static tables in memory — byte-identical
    (`build/reports/dump_constants.md`). The ISO build's own runtime layout
    would be decoded the same way if the ISO build is run instead.
+   **Caveat (2026-08-11):** none of the captured dumps — including the
+   Ship-Yards dump `ram_1ce2a000.bin` ("colony view") — have the per-type
+   stat tables materialised (stage 14 `make stats` reports "main-menu dump"
+   for every dump that contains the image). The building-placement view
+   specifically is what writes `0xab60`/`0x98a2`/`0xcb4e`; a fresh dump taken
+   while placing a building is required to decode them.
 2. **GOG flat — DONE.** The GOG binary is in the workspace
    (`Fragile Allegiance/`, gitignored analysis input). `make gog-flat` +
    `make gog-constants` extract and verify its flat and decode the tables
@@ -263,23 +281,26 @@ byte-identical flat vs runtime).
 - **Shield armour values** — GOG `0x90A80`/`0x90AC0`: `{10, 20, 30, 40, 50}`
   (Shield x10..x50 armour points; matches the game text "Shield x40: +40
   armour points", "Shield x50: +50 armour points").
-- **Per-item records** — GOG `0x90B60`, stride 0x14: `{u16 ×6, text-offset
-  u16, days u16, price u32}`; the text-offset column (2, 260, 514, 774,
-  1026, …) points into the Ship Yards help text in the loaded TXT. The
-  records' prices (6000, 12000, 3000, 15000, 34000, 24000, 60000, 150000,
-  300000, …) are a second price family — the craft (ships) list, not yet
-  mapped to names (the 60000 record = 60 days matches the game text's
-  Shield x50 mention only if read as a blueprint price; see below).
+- **Per-item records** — GOG `0x90B60` / ISO `0x99248` (byte-identical),
+  stride 0x14: `{u16 ×6, text-offset u16, days u16, price u32}`; the
+  text-offset column (2, 260, 514, 774, 1026, …) points into the Ship Yards
+  help-string table in the loaded TXT. The records' prices (6000, 12000,
+  3000, 15000, 34000, 24000, 60000, 150000, 300000, …) are a second price
+  family — the craft (ships) list, not yet mapped to names (the 60000
+  record = 60 days matches the game text's Shield x50 mention only if read
+  as a blueprint price; see below). Fully decoded (all 10 records) in
+  `docs/mechanics/scitek-blueprints.md`, "The price tables".
 - **Blueprint price pairs** — GOG `0xB72E4` / ISO `0xC1638`: `{price u32,
-  type u32}` pairs, ~30-53 entries, prices 15000..500000, type ids 0..35
-  (with -1 sentinels; the GOG table = the ISO table's tail — ISO carries
-  pairs for 14 extra type ids). 60000 appears twice (type 15 and 28) —
-  candidate blueprint prices for the Shield x40/x50 blueprints ("…all for a
-  mere 60,000 Cr too!" — TXT 135718, the Shield x50 blueprint description).
-  The 12-record table at GOG `0x8F984` / ISO `0x9806C` (`{price u32, 3
-  packed stat bytes, days u32}`) shares values (150000, 300000) with the
-  per-item records and may be the same family in a different layout; role
-  still open.
+  type u32}` pairs, prices 15000..500000, type ids 0..35 (with -1
+  sentinels; the GOG table = the ISO table's tail — ISO carries pairs for
+  14 extra type ids). 60000 appears twice (type 15 and 28) — candidate
+  blueprint prices for the Shield x40/x50 blueprints ("…all for a mere
+  60,000 Cr too!" — TXT 135718, the Shield x50 blueprint description). The
+  full type→price readout (both builds) is in
+  `docs/mechanics/scitek-blueprints.md`, "The price tables". The 12-record
+  table at GOG `0x8F984` / ISO `0x9806C` (`{price u32, 3 packed stat bytes,
+  days u32}`) shares values (150000, 300000) with the per-item records and
+  may be the same family in a different layout; role still open.
 - The 0x90C20..0x91800 region holds further per-type tables (values like
   {512, 20}, {256, 30}, 65535/24575 limits, and per-type records with
   `{flag, type}` headers 0..16) — weapon/turret stats candidates, not yet

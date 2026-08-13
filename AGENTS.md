@@ -113,6 +113,14 @@ Stage numbering in `scripts/`:
 - `06b` (`scripts/build_runtime.py`, `make runtime`) replay the relocation
   stream over the flat image; verifies the image is pre-linked at base 0
 - `07` Ghidra headless import/analyze/export
+- `07b` (`scripts/07b_ghidra_gog_headless.sh`, `make gog-disassemble`) Ghidra
+  headless import/analyze/export of the **GOG retail build's** flat image
+  (`build/flat/FRAGILE.EXE.gog.flat` → `build/decomp/FRAGILE.EXE.gog.flat/`);
+  the GOG flat's entry point is image-relative 0x14, identical to the ISO build.
+  Its prerequisite `make gog-flat-analyze` supplies the optional `code_end`. The
+  GOG rename entries in the shared map live at addresses >= 0x80000 and do not
+  collide with the ISO entries (< 0x80000), so `make names` applies the right
+  set per program.
 - `08` strings sweep
 - `09` data-file format survey (magic/entropy/header probes)
 - `10` DOSBox(-X) runtime tracing (INT 21h/file-open log, disc check)

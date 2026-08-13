@@ -10,7 +10,7 @@ SCRIPTS := scripts
 
 .PHONY: all check download verify extract inventory binary-info disassemble \
         strings dat-survey trace memdump memdump-all extract-flat flat-analyze flat-disasm runtime names \
-        gog-flat gog-constants dump-constants messages clean help
+        gog-flat gog-flat-analyze gog-disasm gog-disassemble gog-constants dump-constants messages clean help
 
 help:
 	@echo "fragile-decomp pipeline targets:"
@@ -44,8 +44,15 @@ help:
 	@echo "                      (ore values, costs, stat records) -> build/reports/"
 	@echo "  make dump-constants decode a memdump: locate the image, derive the load"
 	@echo "                      bases, cross-check the tables at their runtime addresses"
- 	@echo "  make names          mirror decompiled.c to build/named/ with curated"
- 	@echo "                      names from config/ghidra/rename-map.json"
+	@echo "  make gog-flat-analyze"
+	@echo "                      analyse the GOG build's flat image (code/data/strings)"
+	@echo "  make gog-disasm     objdump the GOG build's flat image"
+	@echo "  make gog-disassemble"
+	@echo "                      Ghidra headless import/analyze/export of the GOG"
+	@echo "                      build's flat image (build/decomp/FRAGILE.EXE.gog.flat/)"
+	@echo "  make names          mirror decompiled.c to build/named/ with curated"
+	@echo "                      names from config/ghidra/rename-map.json (processes"
+	@echo "                      every program under build/decomp/, ISO and GOG)"
  	@echo "  make messages       catalog of every message the player can receive"
  	@echo "                      (AMERICAN.TXT notifications + AMERICAN.SCR dialogue)"
  	@echo "                      -> build/reports/messages-catalog.md/.json"
@@ -114,6 +121,15 @@ gog-flat: check-gog-flat
 
 gog-constants: check-gog-constants gog-flat
 	$(PY) $(SCRIPTS)/12_gog_constants.py
+
+gog-flat-analyze: check-flat-analyze gog-flat
+	$(PY) $(SCRIPTS)/06_flat_analyze.py --gog
+
+gog-disasm: check-gog-disasm gog-flat
+	./$(SCRIPTS)/06c_flat_disasm.sh --gog
+
+gog-disassemble: check-gog-disassemble gog-flat-analyze
+	./$(SCRIPTS)/07b_ghidra_gog_headless.sh
 
 dump-constants: check-dump-constants gog-flat
 	$(PY) $(SCRIPTS)/13_dump_constants.py

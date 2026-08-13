@@ -12,12 +12,23 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-FLAT="$ROOT/build/flat/FRAGILE.EXE.flat"
-OBJ="$ROOT/build/flat/fragile.o"
-DISASM="$ROOT/build/flat/full_disasm.txt"
+GOG=""
+[[ "${1:-}" == "--gog" ]] && GOG="gog"
+
+if [[ -n "$GOG" ]]; then
+  FLAT="$ROOT/build/flat/FRAGILE.EXE.gog.flat"
+  STEM="gog"
+  TARGET="make gog-flat"
+else
+  FLAT="$ROOT/build/flat/FRAGILE.EXE.flat"
+  STEM="full"
+  TARGET="make extract-flat"
+fi
+OBJ="$ROOT/build/flat/fragile_${STEM}.o"
+DISASM="$ROOT/build/flat/${STEM}_disasm.txt"
 
 if [[ ! -f "$FLAT" ]]; then
-  echo "error: $FLAT missing; run \`make extract-flat\` first" >&2
+  echo "error: $FLAT missing; run \`$TARGET\` first" >&2
   exit 2
 fi
 if ! command -v objcopy >/dev/null 2>&1 || ! command -v objdump >/dev/null 2>&1; then

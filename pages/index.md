@@ -35,6 +35,9 @@ project.
   reproducible.
 - [Ores and mining](ore-and-mining.md) — the ten ores, the three mines, how
   much ore each asteroid holds, and how the two rarest ores are distributed.
+- [Buildings](buildings.md) — the structures a colony is built from: the
+  always-available buildings, the brochure-locked ones, power and defence,
+  mining, life support, and the alien equivalents.
 - [Asteroid spawning — implementation instructions](asteroid-spawning.md) —
   the build brief for the asteroid field: creation, movement, population
   maintenance, and the colony surface.

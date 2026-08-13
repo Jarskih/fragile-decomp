@@ -60,6 +60,42 @@ many missiles each ship holds — and a ship's **Strike Rate**. Ships can be
 ordered to **Attack** an asteroid or **Intercept** a hostile fleet, and a
 fleet that is fighting is shown **In Combat**.
 
+## Strike chance: how likely a missile is to hit
+
+*Status: read from the game's code and confirmed. The player-facing scale of
+the distance "units" below has not been measured yet (?).*
+
+Every missile attack has a **strike chance** — the share of launched missiles
+the game expects to reach the target asteroid. The game shows it as a
+percentage in two places: the missile targeting dialog ("Strike chance:
+%d%%") and the spy report "Report of enemy missile launch" that warns you
+when an enemy colony fires at one of your asteroids.
+
+The strike chance depends on exactly one thing: the straight-line distance
+between the launching asteroid and the target.
+
+- Inside the **full-accuracy range** the chance is **100%**.
+- Beyond it, the chance falls by **1 percentage point for every 1.6 units**
+  of extra distance.
+- It reaches **0% at 192 units** and stays there — the game never shows a
+  negative chance.
+
+The **Missile Guidance System** blueprint from Sci-Tek doubles the
+full-accuracy range, from **32 units to 64 units**. In practice that adds up
+to 20 percentage points of strike chance (the brochure's "+25%" is
+approximate) and pushes the 0% point out to **224 units**. The **Asteroid
+Tracker** blueprint does not change the chance at all — it only installs the
+estimate on the targeting screen, which is exactly what the brochure's own
+text promises ("adds a strike-accuracy estimate to the missile targeting
+screen"); without the tracker the game shows no strike chance.
+
+Nothing else enters the calculation: every missile kind uses the same
+chance, and the target's defences do not affect the displayed number
+(defences reduce damage by shooting warheads down in flight, which is a
+separate matter). For example, a target 80 units away shows a strike chance
+of 70%, or 90% once the colony owns the Missile Guidance System; a target
+160 units away shows 20%, or 40% with it.
+
 ## How a firing ship behaves
 
 A ship or fleet ordered to attack does the following, as read from the code:
@@ -69,9 +105,9 @@ A ship or fleet ordered to attack does the following, as read from the code:
 - Firing happens **only while the target is genuinely hostile**: an enemy's
   asteroid, or any asteroid that is not yours. Ships will not open fire on a
   friendly or neutral target (?).
-- Once in range it **fires repeatedly while approaching**: each tick there is
-  a chance of a shot (the exact per-tick probability is not yet measured),
-  and **each shot consumes one missile** from the ship's hold.
+- Once in range it **fires repeatedly while approaching**: each tick has a
+  **30% chance** of launching a shot, and **each shot consumes one
+  missile** from the ship's hold.
 - Each shot is **aimed**: the missile's course is steered slightly toward the
   target every tick, so shots home in; a wayward shot can be re-aimed or
   dropped.
@@ -84,8 +120,9 @@ A ship or fleet ordered to attack does the following, as read from the code:
   ([Vehicles](vehicles.md)).
 - In-flight missiles are themselves shot at: defenders sweep a firing arc
   ahead of them, and anything in the arc — including incoming missiles — is
-  hit and destroyed (?). This is why a defended asteroid is harder to bomb
-  than an undefended one.
+  hit without a second roll. The arc and range are per-race values not yet
+  measured (?). This is why a defended asteroid is harder to bomb than an
+  undefended one.
 
 ## What a hit does
 

@@ -189,23 +189,65 @@ The fire resolution `0x14384`:
   (`call *0xa4ac(%edi)` — see Open questions: the callback pointers are
   runtime values).
 
-**The 0x200e4-family "combat tick" is unreferenced (stale).** The per-subtype
-handlers at 0x200e4/0x2049c (dispatch via 0xba8a/0xbfe4)/0x20564/0x2059e/
-0x20809 (the `rng_next(100) < 0xc095[subtype]` strike roll)/0x20b51/0x210a7,
-and the sweep helpers 0x1fd34/0x1fde4, have **no static callers anywhere in
-the image** (checked against the full disassembly). Their table reads
-(`0xc02c..0xc0a4` per-subtype stats, strike byte `0xc095`, speed base
-`0xc0a4`, `0xba8a`/`0xbfe4` dispatch) land on instruction bytes in the flat
-(the "tables in code" anomaly, `weapon-and-turret-numbers.md`). The only
-static chains into the combat machinery run through the live event handler
-`0x52b74` (event types 0..2 → cell-hit scan `0x1aea4` + `+0xb` mark; type 4
-→ `combat_shot_spawn` with an rng value) and the slot code above. So the
-strike-roll/heading-roll accuracy mechanics found in that family must be
-treated as **possibly stale** — whether the live game rolls a per-shot
-"Strike Rate" is unconfirmed (a runtime trace is required; the fleet panel's
-**Strike Rate** stat and the missile targeting dialog's "Strike chance: %d%%"
-are the game's own labels, and one blueprint advertises "+25% strike
-accuracy"). See `weapon-and-turret-numbers.md`.
+**The 0x200e4-family "combat tick" is the live combat machine (corrected).**
+The per-subtype handlers at 0x200e4/0x2049c (dispatch via 0xba8a/0xbfe4)/
+0x20564/0x2059e/0x207a4 (the `rng_next(100) < 0xc095[subtype]` strike roll)/
+0x20b51/0x210a7 and the sweep helpers 0x1fd34/0x1fde4 have no static callers
+because they are **dispatched through runtime-filled pointer tables**: the
+task-list walk calls the handler at node `+0xc`, and `combat_shot_spawn`
+(`0x1ffc4`) loads that handler from the runtime pointer `0xbff8` (+4); the
+per-type dispatch reads `0xbfe4[0xba8a[type*16]]`. The earlier "probably
+stale" conclusion was therefore wrong — the live chain runs
+`0x51664` → `0x52b74` → `combat_shot_spawn` → the 0x200e4-family handlers.
+The GOG retail build proves the same: its twin machine (handlers at
+0x20094..0x20b54, spawned by `obj_spawn_child` 0x1fbc4) is present and live.
+The full hit-resolution analysis — the arc/radius sweep, the per-tick strike
+roll, the direct-hit path and the aim-spread computation — is now in
+`ship-hit-formula.md`. The panel/dialog **percentages** are a different,
+distance-based computation and are confirmed — see the next section.
+
+## Strike chance: the missile accuracy formula (confirmed)
+
+Status: **confirmed** by static disassembly in both builds — the ISO flat's
+`FUN_00021104` (helper at `0x21104`, thunk `0x21184`; `math_angle_from_delta`
+`0x5d464` is misnamed — it is a 2-D distance helper: `fildl` both deltas,
+`0x66f58` = `sqrt(x²+y²)`, round to int) and the GOG build's `race_stat_percent`
+at `0x20cb4` (`math_hypot` `0x5a214`). The two implementations are identical.
+
+The game's "Strike chance: %d%%" — the missile targeting dialog's estimate
+(TXT 34563) and the agent report's "Report of enemy missile launch" (TXT
+34479) — is a pure distance function:
+
+```
+dx = (target.X − launcher.X) >> 16     ; 16.16 world coords → whole units
+dy = (target.Y − launcher.Y) >> 16
+dist = round(sqrt(dx² + dy²))          ; integer, 2-D only (Z ignored)
+base = 0x20 (32)                       ; 0x40 (64) if the launcher's owner
+       is a normal race (index < 9) and owns the Missile Guidance System
+chance = dist ≤ base ? 100
+       : max(0, 100 − (dist − base) · 100 / 160)   ; integer division
+```
+
+The guidance flag byte lives in the per-race research/blueprint array
+(stride 0x26 = the 38-entry Sci-Tek catalogue; ISO base `0xcc34`, GOG base
+`0xc567`): offset `+0xf` = catalogue index 15 = **Missile Guidance System**
+(TXT 121394, "increase in strike accuracy of 25%"). The **Asteroid Tracker**
+(offset `+0x5`, `0xcc39`) is *not* in the formula — per TXT 9148 it only
+enables the display of the estimate.
+
+Effect: 100% at ≤ 32 units (≤ 64 with guidance); then the chance falls by
+1 percentage point per 1.6 units of distance, hitting 0% at 192 (224 with
+guidance) units. The guidance blueprint therefore adds at most 20 percentage
+points — the text's "+25%" is marketing. Units are the same whole world
+units used everywhere else (16.16 fixed point shifted right 16).
+
+Callers (ISO): the targeting list header `FUN_0003b0e4` (the "100 if own
+asteroid, else formula" path — the missile targeting screen's strike-chance
+display) and the message builders `obj_spawn_subtyped`/`obj_spawn_bitmasked`
+(the latter is the missile-launch report; its node `+0x58` carries the
+chance). The same helper also scores ore buyers
+(`FUN_0001a114`/`race_find_ore_buyer`, gated at > 25) — the helper is a
+generic distance→percentage, not missile-specific.
 
 **Targeting scores.** `0x52e64` scores a candidate from the shooter position:
 distance must be in `[0x40, 0x4000]` and the bearing within ±0x10 of the
@@ -213,17 +255,17 @@ shooter's heading, else 0x7fffffff (rejected); otherwise the score is the
 squared distance, or a fresh rng roll when the target is closer than 0x100
 (and `+0x7` unset). The best score wins the slot.
 
-**Arc sweep (stale, kept as reference).** The child-list sweep `0x1fde4` is
-reachable only from the unreferenced 0x200e4-family (see above) and is
-therefore not confirmed as live; it documents the firing model the stale
-handlers used: a launcher (node `+0x8` type, `+0x1e` facing, `+0x1f*param_2`
-range) walks the target's child list; every child whose world position
-(`+0x14/+0x15` cell offsets + per-type offsets from `0x386d4/0x386d5`) lies
-within the range² and whose angle lies inside the facing arc (`+0x1e` ± 0xa0,
-byte angles — a wide front cone) is marked hit (`+0xb = 5`, or 0xf6 for
-non-turret types) and takes damage via `0x1adb4` (child `+0x9` HP −= damage,
-destroyed at ≤ 0). The live hit path in this build goes through the event
-handler `0x52b74` (cell scan `0x1aea4`).
+**Arc sweep (confirmed live — see `ship-hit-formula.md`).** The child-list
+sweep `0x1fde4` runs inside the live combat machine (its GOG twin is
+`combat_cone_effect` `0x1f9e4`, reachable from the live event chain). A
+launcher (node `+0x8` type, `+0x1e` facing, `+0x1f*param_2` range) walks the
+target's child list; every child whose world position (`+0x14/+0x15` cell
+offsets + per-type offsets from `0x386d4/0x386d5`) lies within the range²
+and whose angle lies inside the facing arc (`+0x1e` ± 0xa0, byte angles — a
+wide front cone) is marked hit (`+0xb = 5`, or 0xf6 for non-turret types)
+and takes damage via `0x1adb4` (child `+0x9` HP −= damage, destroyed at
+≤ 0). Children within the inner radius `(node+0x1f · range²) >> 6` skip the
+arc test. The generic sweep damage is 5.
 
 ## Fleet structure facts
 
@@ -238,12 +280,13 @@ handler `0x52b74` (cell scan `0x1aea4`).
 
 ## Open questions
 
-- **Dogfight accuracy**: the strike-roll/heading-roll mechanics found in the
-  0x200e4-family are probably stale (no static callers — see the dogfight
-  section). Whether the live game rolls a per-shot chance against the
-  panel's "Strike Rate" (and how the +25%-accuracy blueprint applies) is
-  unconfirmed; the answer lives in the runtime-filled weapon callbacks and
-  needs a memory trace of a live fight.
+- **Dogfight accuracy — now answered**: see `ship-hit-formula.md`. The
+  hardpoint beam weapons resolve hits by arc/radius sweep with no accuracy
+  roll; the strike roll (`rng_next(100) < per-race byte`) exists only in the
+  rolled sub-shots of the surface combat machine, and the displayed
+  "Strike Rate"/"Strike chance" is the distance formula. What remains open
+  is the **values** of the per-race bytes (runtime-only, no dump has them
+  materialised).
 - The per-tick **flight movement and detonation** of SHOT nodes: the
   movement uses the shared direction tables and the `+0x16` homing steer is
   confirmed, but the exact updater loop and the impact/crater application
@@ -261,15 +304,20 @@ handler `0x52b74` (cell scan `0x1aea4`).
   `*_PHOTO\trm08..21.256`): see `weapon-config-table.md`. The `type_pick`
   function is `0x54864` here (`0x51948` in the GOG build).
 - The two fire-gate numbers (30% per-tick roll, bearing window 0x0c..0x2b)
-  are observed as written; whether the 30% roll is a hit/miss roll or
-  rate-of-fire gating, and the exact meaning of the bearing window (the
-  below-0x0c branch drops the aim instead of firing), is not yet pinned
-  down — a trace of a live attack would settle it.
+  are observed as written; the 30% roll is a **rate-of-fire gate** on the
+  missile firing pipeline (it decides whether a tick fires a missile at
+  all), not a hit/miss roll — the hit resolution is in
+  `ship-hit-formula.md`. The bearing window (the below-0x0c branch drops
+  the aim instead of firing) is still not fully pinned — a trace of a live
+  attack would settle it.
 - The target stat at `+0x17c` (compared against 5 in the enemy check) is
   plausibly the target's armour/defence but is not yet identified.
 
 ## References
 
+- `docs/mechanics/ship-hit-formula.md` — the hit models (arc/radius sweep,
+  strike roll, direct hit), the aim-spread computation and the displayed
+  strike percentage (this session's analysis).
 - `docs/mechanics/weapon-config-table.md` — the per-type weapon table,
   sprite-name pool and type picker (confirmed statically).
 - `build/named/FRAGILE.EXE.flat/decompiled.c` — named view (this build).

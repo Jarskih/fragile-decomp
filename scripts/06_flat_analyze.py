@@ -136,9 +136,13 @@ def region_pointers(img: bytes, code_end: int, sstart: int, send: int) -> dict:
 
 def main() -> int:
     cfg = lib.load_config()
-    flat = lib.flat_dir(cfg) / f"{MAIN_EXE}.flat"
+    gog = "--gog" in sys.argv[1:]
+    exe = "FRAGILE.EXE.gog" if gog else MAIN_EXE
+    stem = "flat_analysis_gog" if gog else "flat_analysis"
+    flat = lib.flat_dir(cfg) / f"{exe}.flat"
+    target = "make gog-flat" if gog else "make extract-flat"
     if not flat.is_file():
-        lib.note(f"{flat} not found (run `make extract-flat` first)", "red")
+        lib.note(f"{flat} not found (run `{target}` first)", "red")
         return 2
 
     img = flat.read_bytes()
@@ -152,7 +156,7 @@ def main() -> int:
     sample = [s["text"] for s in strings[:60]]
 
     data = {
-        "source": f"flat/{MAIN_EXE}.flat",
+        "source": f"flat/{exe}.flat",
         "size": bd["size"],
         "code_data": bd,
         "entry_candidates": entries,
@@ -170,7 +174,7 @@ def main() -> int:
         },
     }
 
-    jpath, mpath = lib.report_pair(cfg, "flat_analysis", data)
+    jpath, mpath = lib.report_pair(cfg, stem, data)
 
     rows = [
         ["code", f"0x0 .. 0x{bd['code_end']:x}", bd["code_end"]],
@@ -179,7 +183,7 @@ def main() -> int:
         ["string data", f"0x{bd['strings_start']:x} .. 0x{bd['size']:x}",
          bd["string_region_size"]],
     ]
-    md = (f"# Flat image analysis ({MAIN_EXE})\n\n"
+    md = (f"# Flat image analysis ({exe})\n\n"
           + lib.md_table(["region", "range", "size"], rows)
           + "\n\n## Entry candidates\n\n"
           + lib.md_table(["offset", "prologue", "bytes"],

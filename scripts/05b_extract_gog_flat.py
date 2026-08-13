@@ -234,6 +234,7 @@ def main() -> int:
         "source_size": len(f),
         "anchors": {k: (f"{v:#x}" if isinstance(v, int) else v)
                     for k, v in anchors.items()},
+        "entry_hint": 0x14,
         "image": {
             "size": len(flat),
             "sha256": sha,
@@ -269,6 +270,8 @@ def main() -> int:
         ["cross-check", f"streams 1..{anchors['streams']}",
          f"{stats['verified']} fields match",
          f"{stats['off_buffer']} off-buffer (expected 1)"],
+        ["entry hint", "0x14 (image-relative)", "-",
+         "Prologue_ push sequence; same offset as the reference-ISO build"],
     ]
     md = (f"# Flat image extraction (GOG build, FRAGILE.EXE)\n\n"
           + lib.md_table(["region", "range", "size / records", "notes"], rows)

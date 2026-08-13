@@ -3,7 +3,9 @@
 Status: **behaviour confirmed** (the game's own text resources) and the
 reference-build code architecture for the defence state machine **confirmed**
 (static disassembly + the partial decompiled export of the reference ISO flat,
-`build/decomp/FRAGILE.EXE.flat/decompiled.c`). The per-turret **numeric
+`build/decomp/FRAGILE.EXE.flat/decompiled.c`). The colony weapon **fire gate
+("hit" formula) is now CONFIRMED in both builds** (see "The colony weapon
+fire gate" below). The per-turret **numeric
 stats — damage, exact range, fire rate, power use — are NOT yet extractable**:
 the per-type stat tables hold code-like bytes in the flat (the "tables in
 code" anomaly already documented for the GOG build in
@@ -157,6 +159,63 @@ relative to the node):
   0x49000..0x54000 block ("combat/damage rolls") as the next candidate for a
   dedicated mechanics doc.
 
+## The colony weapon fire gate — the "hit" formula (2026-08-13)
+
+Every colony defence weapon — the turret and missile-silo shot paths — shares
+one **per-tick fire gate** that runs before the weapon's countdown is even
+touched. It is identical in both builds (ISO fire tick 0x9b3e, gate rolls at
+0x9c03/0x9c8e/0x9f78/0x9fcf/0xa000; GOG fire tick 0x99c4, gate rolls at
+0x9a89/0x9b14/0x9dfe/…; GOG `rng_next` = 0x5894a):
+
+```
+accuracy = colony_record[+0x1c]                ; signed byte
+if (rng_next(100) >= accuracy) {               ; the gate
+    countdown = 0;                             ; failed gate: primed for a snap shot
+    return;
+}
+countdown -= 1;
+if (countdown == 0) { fire shot; countdown = 15; }
+```
+
+- **The accuracy byte** (`+0x1c`) lives on the **colony record** (the
+  per-race colony slot; pointer cached in `g_cur_colony` 0x5bf78, written at
+  0x9bbd), *not* on the structure/turret node. The fire tick walks the
+  asteroid object list (0xc3f4) for that race's colony object, looks the
+  colony record up by kind (`+0x14d` vs record `+8`) and reads the byte from
+  there.
+- **Initial value** = the per-colony-kind maximum, loaded from byte table
+  `0x9d78` (ISO) / `0x9690` (GOG), stride 0x1c (init at ISO 0x7c51).
+- **Drift** (once per colony tick, inside the growth tick — ISO 0x856e / GOG
+  0x83ee): if the colony's growth value `+0x18` is **above** the per-kind
+  threshold dword table `0x9d68` (ISO) / `0x9680` (GOG) the byte falls by 1
+  (floor 0); otherwise it rises by 1 (ceiling = the max table). The growth
+  percentage kept at `+0x17` is `min(100, growth*100/12000)`. So a colony
+  under growth pressure loses weapon accuracy; a relaxed one regains it.
+- **Countdowns**: three slots — `+0x1b8`/`+0x1b9`/`+0x1bb` (ISO; GOG
+  `+0x1a8`/`+0x1a9`/`+0x1ab`), each re-armed to **15** (0xf) ticks after
+  firing (ISO 0x9c2f/0x9d43/0x9d90/0xa02c); another path re-arms 40 (ISO
+  0x118b8, GOG 0x115a4). The shot spawner is 0x4b584 (ISO) / 0x48e64 (GOG),
+  called with the per-path launcher-context globals (0x3a250/0x3a254,
+  0x3a290/0x3a294, 0x3a588/0x3a58c); the owner-must-be-player check precedes
+  the spawn.
+- **Failed-gate semantics**: a failed roll zeroes the countdown, and the
+  fire test is `countdown == 0` *before* the decrement — so after any
+  failed gate the next passed roll fires immediately (a "snap shot" after
+  the tracking lock is regained), while a steady lock fires on the plain
+  15-tick cycle. Net effect: fire interval ≈ 15 ticks at accuracy ≥ 100;
+  at mid accuracy (~50) the snap-shot path dominates and the weapon fires
+  roughly every few ticks; at accuracy → 0 it nearly stops. An accuracy byte
+  of 255 (signed −1) disables the gate entirely (never fires).
+- **Rare event**: when the accuracy byte is below 5, a second roll
+  (`rng_next(100) < 5`) each tick triggers a 27-way table pick
+  (`rng_next(27)` → byte table 0x9f64 ISO / 0x987c GOG) into an
+  effect/message call (0x8a24 ISO / 0x88a4 GOG).
+- **Still runtime-only**: the per-kind table values themselves (max accuracy
+  0x9d78, growth threshold 0x9d68) sit in "tables in code" regions of both
+  flats and are not statically readable — the numeric accuracy values per
+  colony kind still require the runtime memory trace. The mapping
+  colony-kind ↔ game name is also still open.
+
 ## Open question: the per-turret numbers
 
 The **damage values (and exact range/fire-rate/power numbers) per turret are
@@ -200,3 +259,8 @@ Resolution paths (both deferred):
   `weapon_*`, `combat_*`) whose reference-build addresses are not yet mapped.
 - `docs/mechanics/main-loop.md`, `docs/mechanics/rng.md` — the tick
   dispatcher and the RNG call-site census (combat block 0x49000..0x54000).
+- The fire gate: ISO `build/flat/full_disasm.txt` 0x9b3e..0xa071 (rolls at
+  0x9c03/0x9c8e/0x9f78/0x9fcf/0xa000, growth drift at 0x856e, init at
+  0x7c51, tables 0x9d68/0x9d74/0x9d78, 40-tick re-arm 0x118b8); GOG
+  `build/flat/gog_disasm.txt` 0x99c4..0xa0c8 (rolls at 0x9a89/0x9b14,
+  drift at 0x83ee, init at 0x7adc, tables 0x9680/0x9690).

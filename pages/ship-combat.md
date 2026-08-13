@@ -4,10 +4,9 @@ title: Ship-to-ship combat
 
 # Ship-to-ship combat
 
-*Status: the firing machinery (hardpoint slots, ammunition, fire delays) is
-confirmed from the binary. The accuracy calculation — what a hit depends on —
-has **not** been read out of the game yet: the per-ship and per-weapon
-numbers the game uses exist only in memory at runtime and are marked (?).*
+*Status: the hit resolution is now read out of the game's code in both
+builds. What remains unknown (marked ?) are the per-race numbers — weapon
+ranges, strike rates and shot speeds exist only in memory at runtime.*
 
 ## How a ship fights
 
@@ -31,24 +30,25 @@ series — are covered on the [Vehicles](vehicles.md) page.
 
 ## What determines a hit
 
-A hit is not settled by one simple roll (?). The game reads a per-ship
-**Strike Rate** (shown on each ship in the fleet panel) and applies it to
-the firing ship's shots — a ship with a higher Strike Rate lands a higher
-share of its shots. One blueprint promises a **25% increase in strike
-accuracy**, which implies the rate is modified by equipment.
+A hardpoint weapon hit is **not a random roll**. A firing ship simply
+covers an area in front of it:
 
-Two things about the hit calculation are known from the binary but not yet
-confirmed against the running game (?):
+- every target within the weapon's **range** is hit automatically;
+- for directional weapons the shot only reaches targets inside the firing
+  ship's forward arc — a target that is not roughly in front of the ship
+  cannot be hit;
+- targets very close to the ship are hit no matter which way the weapon
+  faces.
 
-- the ship's aim depends on its **heading relative to the target**: shots
-  at targets off to the side miss more often than shots straight ahead;
-- each fired shot carries a small random **spread**, so identical shots do
-  not fly exactly the same.
+So for a dogfight the aim is positional: get the enemy ship inside the
+weapon's range and in front of your ship, and the shot connects. The exact
+range of each weapon and the size of the forward arc are per-race numbers
+that exist only in memory at runtime (?), so they have not been read out
+yet.
 
-For beam-style weapons the game is believed to resolve hits by **arc**:
-everything within the weapon's range and inside the front arc of the firing
-ship is hit, without a second roll. The exact range and arc of each weapon
-are per-type numbers that have not been read out of the game yet (?).
+The number the game calls **Strike Rate** is different: it is a distance
+estimate shown for missile attacks, not a per-shot die roll. See
+[Missiles and how they are fired](missiles.md).
 
 ## Armor and destruction
 
@@ -61,9 +61,10 @@ shield, which makes a ship "almost (but not quite) invulnerable to attack".
 ## Bombardment is a separate system
 
 Attacks on an asteroid use missiles, not the weapons above. The targeting
-dialog shows a **Strike chance** (a percentage) for the selected missile
-type, and the expected share of missiles that will hit is part of the
-planning display. See [Missiles and how they are fired](missiles.md).
+dialog shows a **Strike chance** (a percentage) for the chosen target — a
+distance-based estimate of the share of missiles that will reach it, not a
+property of the missile type. See [Missiles and how they are
+fired](missiles.md).
 
 *Related: [Vehicles](vehicles.md) — hardpoints, fleets and the craft
 roster; [Missiles and how they are fired](missiles.md) — ship-to-asteroid

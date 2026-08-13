@@ -1,0 +1,17 @@
+==============================================================================
+==============================================================================
+==============================================================================
+==============================================================================
+==============================================================================
+==============================================================================
+==============================================================================
+==> analyze EREGCARD.EXE  (project: fragile_decomp_EREGCARD)
+==> analyze FRAGILE.EXE  (project: fragile_decomp_FRAGILE)
+==> analyze INSTALL.EXE  (project: fragile_decomp_INSTALL)
+==> analyze INSTALL/INSTALL.EXE  (project: fragile_decomp_INSTALL)
+==> analyze INSTALL/LOADPATS.EXE  (project: fragile_decomp_LOADPATS)
+==> analyze INTRPLAY.EXE  (project: fragile_decomp_INTRPLAY)
+==> analyze LOADPATS.EXE  (project: fragile_decomp_LOADPATS)
+==> analyze LOGO.EXE  (project: fragile_decomp_LOGO)
+==> analyze _INST.EXE  (project: fragile_decomp__INST)
+==> analyze flat image /mnt/e/Fragile/fragile-decomp/build/flat/FRAGILE.EXE.flat  (project: fragile_decomp_FRAGILE_flat)

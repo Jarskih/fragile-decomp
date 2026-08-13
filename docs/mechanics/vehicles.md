@@ -194,7 +194,11 @@ the documented "runtime trace required" situation:
 
 - The per-class numeric stat table (costs, build times, hull, speed,
   hardpoints) — needs a runtime trace; the flat bytes at the table addresses
-  are code-like.
+  are code-like. Two related price families ARE readable as static data:
+  the 10-record Ship Yards per-item table (ISO 0x99248 / GOG 0x90B60,
+  prices 6,000–300,000 Cr, days 0–70) and the 12-record stat table
+  (ISO 0x9806C / GOG 0x8F984) — decoded in `scitek-blueprints.md`, "The
+  price tables"; which record names which craft is still open.
 - Which TXT tokens the Ship Yards displays for the base ships' descriptions,
   and whether the 10 "blueprint ships" (Lazzaro Research … SkyMech) map 1:1
   onto ship classes or onto variants of them.

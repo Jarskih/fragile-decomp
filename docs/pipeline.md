@@ -39,9 +39,18 @@ Optional stages (inputs other than the ISO):
 
 ```
 05b_extract_gog_flat.py          build/flat/FRAGILE.EXE.gog.flat (GOG build)
+06_flat_analyze.py --gog         build/reports/flat_analysis_gog.* (entry/regions)
+06c_flat_disasm.sh --gog         build/flat/gog_disasm.txt (objdump of GOG flat)
+07b_ghidra_gog_headless.sh       build/decomp/FRAGILE.EXE.gog.flat/ (Ghidra export)
 12_gog_constants.py              build/reports/gog_constants.* (stat tables)
+14_extract_stats.py              build/reports/stats.* (per-type runtime stats)
 memdump.ps1  +  13_dump_constants.py   build/dumps/ -> build/reports/dump_constants.*
 ```
+
+The GOG build's decompiled export lands in `build/decomp/FRAGILE.EXE.gog.flat/`;
+`make names` (stage 11) processes every program under `build/decomp/`, so the GOG
+flat gets the GOG-range names from `config/ghidra/rename-map.json` (addresses
+>= 0x80000, which do not collide with the ISO entries < 0x80000).
 
 ## Stage details
 
@@ -153,6 +162,16 @@ Stage 05b locates every DOS/4G anchor dynamically (no hardcoded offsets),
 slices the flat image, and cross-checks all 261 record streams (34,921
 fields verified, 1 off-buffer). Output: `build/flat/FRAGILE.EXE.gog.flat`
 + `build/reports/flat_extract_gog.*`.
+
+### 07b — GOG build decompilation (optional, `make gog-disassemble`)
+Ghidra headless import of the GOG flat image, mirroring the flat half of stage
+07 but for the retail build: imports `build/flat/FRAGILE.EXE.gog.flat` as a raw
+32-bit x86 binary at base 0 (entry image-relative 0x14, the same offset as the
+ISO build), runs auto-analysis, and exports decompiled C into
+`build/decomp/FRAGILE.EXE.gog.flat/`. Prerequisite `make gog-flat-analyze`
+supplies the optional `code_end` (DATA_START label); without it the import still
+succeeds, just without that label. The GOG rename entries in the shared map live
+at addresses >= 0x80000, so `make names` applies the right set per program.
 
 ### 12 — GOG constants (optional, `make gog-constants`)
 Decodes the gameplay constant tables from the GOG flat: the 11-row
