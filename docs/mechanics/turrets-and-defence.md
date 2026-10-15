@@ -5,10 +5,11 @@ reference-build code architecture for the defence state machine **confirmed**
 (static disassembly + the partial decompiled export of the reference ISO flat,
 `build/decomp/FRAGILE.EXE.flat/decompiled.c`). The colony weapon **fire gate
 ("hit" formula) is now CONFIRMED in both builds** (see "The colony weapon
-fire gate" below). The per-turret **numeric
-stats — damage, exact range, fire rate, power use — are NOT yet extractable**:
-the per-type stat tables hold code-like bytes in the flat (the "tables in
-code" anomaly already documented for the GOG build in
+fire gate" below). The per-type **HP / state / cost table is now READABLE
+static data in both builds** (see `docs/mechanics/building-stat-table.md`).
+The per-turret **numeric stats — damage, exact range, fire rate, power use —
+are NOT yet extractable**: the per-type stat tables hold code-like bytes in
+the flat (the "tables in code" anomaly already documented for the GOG build in
 `asteroid-spawning.md`/`ore-and-mining.md`) and are written at runtime, so a
 runtime memory trace is still required. See "Open question" below.
 
@@ -113,7 +114,7 @@ relative to the node):
 
 | address | stride | field | role |
 |---------|--------|-------|------|
-| 0xa6b8 | 3 | byte | base hit points at creation (with the `+0xa` modifier) |
+| 0xa6b8 | 6 | byte | base hit points at creation (with the `+10` bonus when the race byte at `race*0x26+0xcc3a` is positive); the table is **static data** in both builds — see `building-stat-table.md` (GOG flat 0x8FFD4 / ISO flat 0x986BC, byte-identical) |
 | 0xa6ba | 1 or 6 | u16 | build cost in credits (paid from the per-race fund at `0xc458`); the **live** construction-UI check reads `[type*2 + 0xa6ba]` (0x8a87), the creation path reads `[type*6 + 0xa6ba]` — conflicting strides, unresolved (see `weapon-and-turret-numbers.md`) |
 | 0xaade | 1 | signed byte | per-type power/maintenance contribution (subtracted from the colony power value `+0x12a`) |
 | 0xb244 | 0x14 | u16 | defence range; stored at node `+0x0a` (`>> 2` in the arming path of `FUN_0001c2f4`) |
@@ -184,7 +185,9 @@ if (countdown == 0) { fire shot; countdown = 15; }
   colony record up by kind (`+0x14d` vs record `+8`) and reads the byte from
   there.
 - **Initial value** = the per-colony-kind maximum, loaded from byte table
-  `0x9d78` (ISO) / `0x9690` (GOG), stride 0x1c (init at ISO 0x7c51).
+  `0x9d78` (ISO) / `0x9690` (GOG), stride 0x1c (init at ISO 0x7c51; GOG init
+  0x7ac1, per-kind record init loop at GOG 0x7543 creates 16 records of
+  stride 0x28 with `+0x1c` = accuracy).
 - **Drift** (once per colony tick, inside the growth tick — ISO 0x856e / GOG
   0x83ee): if the colony's growth value `+0x18` is **above** the per-kind
   threshold dword table `0x9d68` (ISO) / `0x9680` (GOG) the byte falls by 1
@@ -201,20 +204,99 @@ if (countdown == 0) { fire shot; countdown = 15; }
 - **Failed-gate semantics**: a failed roll zeroes the countdown, and the
   fire test is `countdown == 0` *before* the decrement — so after any
   failed gate the next passed roll fires immediately (a "snap shot" after
-  the tracking lock is regained), while a steady lock fires on the plain
-  15-tick cycle. Net effect: fire interval ≈ 15 ticks at accuracy ≥ 100;
-  at mid accuracy (~50) the snap-shot path dominates and the weapon fires
-  roughly every few ticks; at accuracy → 0 it nearly stops. An accuracy byte
-  of 255 (signed −1) disables the gate entirely (never fires).
+  the tracking lock is regained), while a steady lock fires every **16**
+  ticks (15 charge ticks, then the fire tick). Net effect: fire interval
+  ≈ 16 ticks at accuracy ≥ 100; at mid accuracy (~50) the snap-shot path
+  dominates and the weapon fires roughly every few ticks; at accuracy → 0
+  it nearly stops. An accuracy byte of 255 (signed −1) disables the gate
+  entirely (never fires).
+- **Fire rate in game time**: the steady 16-tick cycle at full accuracy is
+  **half a game day** at the default game speed — one game day ≈ 32
+  main-pass ticks (see `main-loop.md`, "State cadence and the game day"; the
+  day length scales with the game-speed index, unconfirmed). So a fully
+  accurate colony defence weapon fires about **twice per game day**. The
+  tick→seconds rate is host-dependent, not a code constant: roughly
+  0.2–0.3 s per 16 ticks on a standard DOSBox VGA setup (≈60–70 passes/s,
+  estimate).
 - **Rare event**: when the accuracy byte is below 5, a second roll
   (`rng_next(100) < 5`) each tick triggers a 27-way table pick
   (`rng_next(27)` → byte table 0x9f64 ISO / 0x987c GOG) into an
   effect/message call (0x8a24 ISO / 0x88a4 GOG).
-- **Still runtime-only**: the per-kind table values themselves (max accuracy
-  0x9d78, growth threshold 0x9d68) sit in "tables in code" regions of both
-  flats and are not statically readable — the numeric accuracy values per
-  colony kind still require the runtime memory trace. The mapping
-  colony-kind ↔ game name is also still open.
+- **Still runtime-only — and the "flat addresses" are obj-relative, not
+  flat offsets (correction 2026-08-29).** The reader instructions' displacements
+  (`0x9d68`/`0x9d78`/`0x9d7a`/`0x9d7c` ISO, `0x9680`/`0x9690`/`0x9692`/
+  `0x9694` GOG) are **per-object offsets**, not image offsets: the loader
+  relocates them onto the DOS/4G data object, and the flat bytes at those
+  offsets are live code (the fire-tick / colony-tick functions), so reading
+  the flat there yields opcode bytes, not table values. The **GOG runtime
+  addresses** are pinned from the relocated loaded image
+  (`build/flat/FRAGILE.EXE.gog.runtime.bin`) and verified against the live
+  memdump (image at dump offset 0x1c901c): data object `obj3` base
+  `0x24E000`, so the per-kind stride-0x1c record block sits at guest
+  `0x257680` (`obj3 + 0x9680`): threshold dword `+0x00`, a second dword
+  `+0x0c`, max-accuracy byte `+0x10` (`0x257690`), ai-factor byte `+0x12`
+  (`0x257692`), and another byte `+0x14` (`0x257694`). The ISO build uses the
+  same scheme but its data-object base is not yet known (no ISO memdump).
+  The values are still runtime-written: no captured dump (all "main-menu
+  status", even the colony-view / Ship-Yards dumps) has the block
+  materialised — the flat's obj3 content there is a table of relocated code
+  pointers. A fresh dump from a **running game** (colony view after a new
+  game is started) read at guest `0x257680` + kind·0x1c decodes the real
+  per-kind thresholds and max accuracies. The mapping colony-kind ↔ game
+  name is also still open.
+
+### Worked examples
+
+The gate and countdown for one weapon slot, tick by tick (`r` = the
+`rng_next(100)` roll, `C` = the slot countdown; the weapon fires when the
+roll passes and `C` was 0 before the decrement):
+
+**Accuracy ≥ 100 (full lock).** Every roll passes (r < 100 always). After a
+shot the countdown is 15, so the weapon charges for 15 ticks and fires on
+the 16th — one shot per 16 ticks, forever. At spawn the countdown starts at
+0, so the first shot comes on the very first active tick.
+
+```
+tick:  1   2   3   …  15  16      (after shot C=15)
+roll:  <A  <A  <A  …  <A  <A
+C:     15  14  13  …  1   0→fire, C=15
+```
+
+**Accuracy 255 (signed −1).** `r ≥ −1` holds for every roll, so the gate
+always fails: the countdown is repeatedly zeroed but the weapon never
+fires. A colony kind whose table maximum is 0xff has its weapon effectively
+switched off.
+
+**Accuracy 50 (erratic).** Half the rolls pass. After a shot, the first
+failing roll (expected after ~2 ticks) zeroes the countdown, and the next
+passing roll (expected ~2 ticks later) fires immediately — a snap shot.
+Expected interval ≈ 4 ticks, *faster* than full accuracy, because the
+weapon discharges on every re-lock:
+
+```
+tick:  1     2     3     4
+roll:  pass  fail  pass  —
+C:     15→14   →0   0→fire, C=15     (fire 3 ticks after the previous
+                                      shot; on average ≈ 4)
+```
+
+**Accuracy 5 (near-blind).** 95% of rolls fail. After a shot the countdown
+is zeroed almost immediately; the weapon then waits ~20 ticks for a passing
+roll to fire (expected interval ≈ 21 ticks). While the byte sits below 5,
+every tick also rolls the 5% rare event, which picks one of 27 effects via
+`rng_next(27)` — roughly one extra event per 20 ticks of combat.
+
+**Accuracy 0.** The gate never passes; the weapon never fires.
+
+**Drift scenario (placeholder numbers — the real tables are runtime-only).**
+Suppose a colony kind's tables read max accuracy 104 and growth threshold
+5000. With growth at 3000 the byte climbs 1 per tick to its 104 cap: the
+gate always passes and the weapon fires on the steady 16-tick cycle. An
+attack pushes growth to 7000: the byte now falls 1 per tick, and the
+weapon slides from steady fire (≥100) through the erratic snap-shot regime
+(~50, a shot every few ticks) down toward near-silence (≤5, a shot every
+~21 ticks plus rare events). The transition is gradual — one accuracy point
+per colony tick in either direction.
 
 ## Open question: the per-turret numbers
 

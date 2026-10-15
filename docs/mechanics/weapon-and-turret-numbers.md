@@ -52,7 +52,7 @@ exact type→text-index mapping is only partially confirmed
 
 | displacement | stride | field | verified read |
 |---|---|---|---|
-| `0xa6b8` | 6 | base HP bytes (creation) | `(&DAT_0000a6b8)[type*6]` |
+| `0xa6b8` | 6 | base HP bytes (creation); static data in both builds, see `building-stat-table.md` | `(&DAT_0000a6b8)[type*6]` |
 | `0xa6ba` | **1 or 6** | build cost, u16 | live construction UI: `mov bx,[ecx+0xa6ba]` (0x8a87, stride 1, compared against the per-race fund); creation/validation path: `[type*6 + 0xa6ba]` (stride 6). Both patterns exist; which is live is unresolved. |
 | `0xaade` | 1 | power/maintenance, signed byte | subtracted from the colony power value |
 | `0xb244` | 0x14 | defence range, u16 | `FUN_0001c2f4`, stored at node `+0x0a` (`>> 2`) |

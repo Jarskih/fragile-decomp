@@ -123,7 +123,10 @@ unidentified (build time / hit points / power / range candidates).
 - 0x8FD80/0x8FE60/0x8FEA4: byte ramps (surface/palette candidates).
 - 0x8FEC4: u16s 205,200,210,185,190,195,150x6.
 - 0x8FF40/0x8FF78: 4-byte rows; 0x8FF48: 12 code pointers.
-- 0x90000: {u16,u16} pairs (4400,8212), (4000,6154), … cost-like.
+- 0x90000: {u16,u16} pairs (4400,8212), (4000,6154), … — **resolved: a
+  misaligned u16 re-read (phase +0x4C) of the building stat table at
+  0x8FFB4** (40 rows × 6 B: {HP u8, state u8, cost u16, byte, byte}; see
+  `docs/mechanics/building-stat-table.md`), not a separate table.
 - 0x90A0A / 0x90B60 / 0x90C20: **the Ship Yards item catalog** — 16
   weapon/module prices (1000..12000 Cr; verified against the live Ship
   Yards screen), the Shield x10..x50 armour values {10,20,30,40,50}, and

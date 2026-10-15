@@ -62,6 +62,10 @@ this directory is copied game data — it is our reconstruction, in our words.
   the game text, and the reference-build defence state machine; per-turret
   damage/range numbers still open (tables-in-code anomaly, runtime trace
   deferred).
+- `building-stat-table.md` — the per-type structure stat table (base HP,
+  state byte, cost, child flag) confirmed as static data in both builds
+  (GOG flat 0x8FFB4 / ISO flat 0x9869C, byte-identical; stride 6; the +10 HP
+  player bonus); type→name mapping still open.
 - `weapons.md` — the firing pipeline: shot pools, homing, the fire gate and
   the (live, corrected) 0x200e4-family combat machine.
 - `ship-hit-formula.md` — what makes a shot hit: the arc/radius sweep

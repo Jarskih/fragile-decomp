@@ -29,6 +29,45 @@ pool, stride 0x1dc), `asteroid_scan_sweep` (0x11644), the index wrap, and the
 world object tick `object_world_tick` (0x1004) + fleet tick `fleet_update_tick`
 (0x50624, ships at `g_ship_list_sentinel` 0xbd40).
 
+## State cadence and the game day
+
+`g_game_state` is not advanced inside `main` — the outer loop's state driver
+(GOG 0x4d5d4, called every main pass) recomputes it each tick:
+
+```
+ebx = [0xbd00]                          ; the day-length global
+if ((tick-1) % (ebx/4) == 0)            ; only every ebx/4 ticks
+    g_game_state = (tick*4 / ebx) & 0xf ; pick the next state
+else
+    g_game_state = -1                   ; empty tick: main runs only its tail
+```
+
+So each state value lasts `[0xbd00]/4` ticks and the full 0..0xf cycle is
+`4*[0xbd00]` ticks; on the ticks in between, `g_game_state` is −1 and `main`
+only runs the tail above. State 5 — the per-day drift, `asteroid_daily_tick`
+0x11364 — therefore fires once per full cycle.
+
+- **`0xbd00`** — the day-length global (GOG runtime guest address 0x259d00),
+  written at scenario init (GOG 0x228c4) as `[0x1660e]*8+8` when
+  `[0x1660f]` (`g_sfx_voice_enabled`) is nonzero, else `[0x1660e]*4+8`. The
+  default init sets `[0x1660e]=0` (and voice on), so `[0xbd00]=8`. `0x1660e`
+  is written from the options screen (0x26d20) — plausibly a game-speed index
+  that scales the day length, but that role is **unconfirmed**.
+- **Game-day length**: with the default `[0xbd00]=8` a full state cycle is
+  **32 ticks**, and because the docs' "per-day drift" (state 5, 0x11364) is
+  what the day unit is built on, 1 game day ≈ **32 ticks**. (Alternative
+  reading — the day is `[0xbd00]` itself, 8 ticks, which would put state 5
+  once every 4 days; the two readings differ 4× and are unresolved without a
+  runtime dump of `0xbd00`.)
+- **A longer cadence**: the outer loop also calls 0x47574 every `[0xbd00]*120`
+  ticks (GOG 0x4e3fc) = 960 ticks at default = 30 state-cycles — a month
+  cadence (0x47574's role unconfirmed).
+- **Tick rate in wall-clock seconds is not fixed in the code**: the main loop
+  has no constant wait; it runs at the host DOSBox pace. On a standard VGA
+  DOSBox setup that is roughly 60–70 passes/s (estimate), i.e. ≈16 ms/tick —
+  making the ~16-tick colony defence cycle ≈ 0.2–0.3 s. Do not treat this as
+  a code fact.
+
 ## Subsystems (function → role, with the evidence)
 
 | address | name | evidence |
@@ -75,6 +114,7 @@ world object tick `object_world_tick` (0x1004) + fleet tick `fleet_update_tick`
 | 0x16624 | `g_cur_race` | the race currently processed (1..14); copied to the player's asteroid +0x84 on save |
 | 0xbe30/0xbe34/0xbe38/0xbe3c | `g_rating_base` + three thresholds | colony-rating scales (TBD) |
 | 0xbf10/0xbf34/0xbf58 | `g_race_node_ptr` / `g_race_timer` / `g_race_build_queue` | per-race current node, deadline timers, build queues (race*4) |
+| 0xbd00 | day-length global | ticks per state-quadrant; drives the state cadence and the month cadence (see "State cadence and the game day"); GOG runtime guest 0x259d00 |
 | 0xbd58/0xbdc4/0xbde8 | `g_race_treasury` / `g_race_reserves` / `g_race_production` | the three best-evidenced per-race counters of the five summed by the economy tick |
 | 0xcb34/0xcb36/0xcaf0 | `g_race_centroid_x/y`, `g_race_history` | race position centroid and its 11-word ring |
 | 0xc950/0xc96e/0xc9ac/0xc9c8/0xca44/0xcb54 | `g_type_known_bits` / `g_relations_positive_bits` / `g_relations_target` / `g_relations_matrix` / `g_relations_accum` / `g_slot_known_bits` | the relations/discovery arrays |

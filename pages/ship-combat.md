@@ -46,6 +46,33 @@ range of each weapon and the size of the forward arc are per-race numbers
 that exist only in memory at runtime (?), so they have not been read out
 yet.
 
+### What this means in practice
+
+- **A ship held in front of you never gets lucky**: while the enemy stays
+  inside the weapon's reach and in your forward arc, *every* shot that
+  fires connects. There is no die roll that can turn a well-aimed shot into
+  a miss.
+- **The rear is a blind cone.** The forward arc covers everything except a
+  sector directly behind the firing ship (about three eighths of the full
+  circle). An enemy directly behind you cannot be hit at all, no matter how
+  close or how weak — flying around behind an enemy ship is therefore a
+  genuine and safe tactic, and being tailed by one is how you lose.
+- **Getting too close removes the facing protection.** A target right on
+  top of the firing ship is hit regardless of which way the weapon points —
+  a ship that tries to hide by sitting inside the enemy's rear cone gives
+  that protection up.
+- **Dogfights are won by position, not by odds.** Two identical ships do
+  not trade misses back and forth; the one that keeps the other in its arc
+  and in range lands every shot, and the loser's escape is to *move* — fly
+  behind the enemy or out of its range — rather than to hope a shot goes
+  wide.
+- **The arc sweep is also the anti-missile defence.** The same rule that
+  puts ships in the line of fire puts incoming missiles there too:
+  defenders cover their forward arc, and anything that enters it —
+  including missiles on their way to the asteroid — is hit without a
+  second roll, taking damage until its armor runs out (see
+  [Missiles](missiles.md)).
+
 The number the game calls **Strike Rate** is different: it is a distance
 estimate shown for missile attacks, not a per-shot die roll. See
 [Missiles and how they are fired](missiles.md).

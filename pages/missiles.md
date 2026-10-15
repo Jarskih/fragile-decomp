@@ -92,9 +92,32 @@ screen"); without the tracker the game shows no strike chance.
 Nothing else enters the calculation: every missile kind uses the same
 chance, and the target's defences do not affect the displayed number
 (defences reduce damage by shooting warheads down in flight, which is a
-separate matter). For example, a target 80 units away shows a strike chance
-of 70%, or 90% once the colony owns the Missile Guidance System; a target
-160 units away shows 20%, or 40% with it.
+separate matter).
+
+Worked examples (the distance scale is the same one the game uses
+everywhere; the player-facing meaning of one unit is not yet measured ?):
+
+| distance | strike chance | with Missile Guidance System |
+|---|---|---|
+| up to 32 units | 100% | 100% |
+| 48 units | 90% | 100% |
+| 64 units | 80% | 100% |
+| 80 units | 70% | 90% |
+| 96 units | 60% | 80% |
+| 112 units | 50% | 70% |
+| 128 units | 40% | 60% |
+| 144 units | 30% | 50% |
+| 160 units | 20% | 40% |
+| 176 units | 10% | 30% |
+| 192 units | 0% | 20% |
+| 208 units | 0% | 10% |
+| 224 units and beyond | 0% | 0% |
+
+So attacking a near neighbour is effectively free of misses; an attack
+from medium range can expect only about half of its missiles to arrive;
+and — until the Guidance System is installed — a launch from 192 units or
+further has a 0% strike chance: no missile is expected to reach the target
+at all.
 
 ## How a firing ship behaves
 
@@ -107,7 +130,11 @@ A ship or fleet ordered to attack does the following, as read from the code:
   friendly or neutral target (?).
 - Once in range it **fires repeatedly while approaching**: each tick has a
   **30% chance** of launching a shot, and **each shot consumes one
-  missile** from the ship's hold.
+  missile** from the ship's hold. (A tick can additionally pass without
+  firing while the approach angle is unsuitable.) In practice that is about
+  one missile every few ticks while the attack lasts — a ship carrying 30
+  missiles empties its hold after roughly a hundred ticks in firing range,
+  which is what the fleet panel's "Missiles At" number is watching.
 - Each shot is **aimed**: the missile's course is steered slightly toward the
   target every tick, so shots home in; a wayward shot can be re-aimed or
   dropped.
@@ -120,9 +147,9 @@ A ship or fleet ordered to attack does the following, as read from the code:
   ([Vehicles](vehicles.md)).
 - In-flight missiles are themselves shot at: defenders sweep a firing arc
   ahead of them, and anything in the arc — including incoming missiles — is
-  hit without a second roll. The arc and range are per-race values not yet
-  measured (?). This is why a defended asteroid is harder to bomb than an
-  undefended one.
+  hit without a second roll and takes damage until it is destroyed. The arc
+  and range are per-race values not yet measured (?). This is why a defended
+  asteroid is harder to bomb than an undefended one.
 
 ## What a hit does
 

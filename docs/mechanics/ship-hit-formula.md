@@ -169,6 +169,78 @@ Own asteroid → fixed 100 (the header special-case). 0 % at 192 units
 the impact itself always hits (see section 2: the first shot is spawned
 without the roll flag).
 
+## Worked examples
+
+### The displayed strike chance
+
+`chance = max(0, 100 − (dist − base)·100/160)` with `base` 32 (64 with the
+Missile Guidance System), integer division:
+
+| dist | base 32 | base 64 |
+|---|---|---|
+| ≤ base | 100% | 100% |
+| 48 | 90% | 100% |
+| 64 | 80% | 100% |
+| 80 | 70% | 90% |
+| 96 | 60% | 80% |
+| 112 | 50% | 70% |
+| 128 | 40% | 60% |
+| 144 | 30% | 50% |
+| 160 | 20% | 40% |
+| 176 | 10% | 30% |
+| 192 | 0% | 20% |
+| 208 | 0% | 10% |
+| ≥ 224 | 0% | 0% |
+
+Practical reading: attacking a near neighbour is effectively free of
+misses; from ~112 units out every second missile is expected to fail; past
+192 units (without guidance) no missile is expected to arrive at all.
+Own-asteroid targets force 100 regardless of distance.
+
+### The arc window and the blind cone
+
+`[facing − 0xa0, facing + 0xa0]` in byte angles (256 = full circle) = a
+**225° window**; the uncovered 135° sector is directly behind the firer.
+So a beam weapon can never hit anything behind its ship, and the facing
+test is dropped entirely inside the inner radius
+`(launcher +0x1f · range²) >> 6` — a ship sitting on top of the firer is
+hit no matter which way it points.
+
+### The fire gate
+
+`rng_next(100) < 30` → on average one launch per 100/30 ≈ 3.3 eligible
+ticks (the bearing window `[0x0c, 0x2b)` can push the interval out). A ship
+carrying 30 missiles and staying in firing range for ~100 ticks therefore
+empties its hold — the "Missiles At" counter ticks down at the same rate.
+
+### The strike roll and chaining
+
+A rolled shot damages its cell 2 HP **every tick** (spatial test
+permitting) and, per tick, with probability `p = strike_byte/100`, spawns a
+no-roll successor with lifetime `parent + rng_next(6)`. A shot with
+lifetime `L` therefore deals `2L` HP itself and an expected
+`2·L·p·(L+3)` HP through its successors (each of the L ticks can trigger a
+successor worth 2·(L+3) HP on average, spatial test permitting). The strike
+byte is runtime-only, so `p` is illustrative: at `p = 0.5` and `L = 20` the
+shot itself deals 40 HP and the expected successor damage is
+`2·20·0.5·23 = 460` HP — the roll is what turns a short-lived shot into a
+sustained attack. (With `p = 0` the attack always ends with the first
+shot's lifetime.)
+
+### The aim spread
+
+`x = (min(dist − speeds, 160) − 32)/3`, then
+`lifetime = (rng_next(x) + rng_next(x) + rng_next(x) + 32)/3`:
+
+- `dist − speeds ≥ 192`: clamped — `x = 42`, each roll 0..41, expected
+  lifetime `(3·20.5 + 32)/3 ≈ 31` ticks.
+- `dist − speeds = 100`: `x = 22`, expected lifetime `(3·11 + 32)/3 ≈ 21`
+  ticks.
+- `dist − speeds < 32`: `x` goes negative and the three rolls return
+  degenerate values — the close-range behaviour of the spread byte is
+  garbage/unpredictable (matches the drop-the-aim branches in the fire
+  wrapper; see open questions).
+
 ## What is still unknown
 
 - **The per-race stat bytes** (strike byte `0xc095` ISO / `0xb9c9` GOG;
