@@ -211,7 +211,7 @@ distance-based computation and are confirmed — see the next section.
 Status: **confirmed** by static disassembly in both builds — the ISO flat's
 `FUN_00021104` (helper at `0x21104`, thunk `0x21184`; `math_angle_from_delta`
 `0x5d464` is misnamed — it is a 2-D distance helper: `fildl` both deltas,
-`0x66f58` = `sqrt(x²+y²)`, round to int) and the GOG build's `race_stat_percent`
+`0x66f58` = `sqrt(x²+y²)`, truncate to int) and the GOG build's `race_stat_percent`
 at `0x20cb4` (`math_hypot` `0x5a214`). The two implementations are identical.
 
 The game's "Strike chance: %d%%" — the missile targeting dialog's estimate
@@ -221,7 +221,7 @@ The game's "Strike chance: %d%%" — the missile targeting dialog's estimate
 ```
 dx = (target.X − launcher.X) >> 16     ; 16.16 world coords → whole units
 dy = (target.Y − launcher.Y) >> 16
-dist = round(sqrt(dx² + dy²))          ; integer, 2-D only (Z ignored)
+dist = floor(sqrt(dx² + dy²))          ; integer, 2-D only (Z ignored)
 base = 0x20 (32)                       ; 0x40 (64) if the launcher's owner
        is a normal race (index < 9) and owns the Missile Guidance System
 chance = dist ≤ base ? 100
@@ -230,16 +230,38 @@ chance = dist ≤ base ? 100
 
 The guidance flag byte lives in the per-race research/blueprint array
 (stride 0x26 = the 38-entry Sci-Tek catalogue; ISO base `0xcc34`, GOG base
-`0xc567`): offset `+0xf` = catalogue index 15 = **Missile Guidance System**
+`0xc558`): offset `+0xf` = catalogue index 15 = **Missile Guidance System**
 (TXT 121394, "increase in strike accuracy of 25%"). The **Asteroid Tracker**
 (offset `+0x5`, `0xcc39`) is *not* in the formula — per TXT 9148 it only
 enables the display of the estimate.
 
 Effect: 100% at ≤ 32 units (≤ 64 with guidance); then the chance falls by
-1 percentage point per 1.6 units of distance, hitting 0% at 192 (224 with
-guidance) units. The guidance blueprint therefore adds at most 20 percentage
-points — the text's "+25%" is marketing. Units are the same whole world
-units used everywhere else (16.16 fixed point shifted right 16).
+an average of 1 percentage point per 1.6 units of distance, hitting 0% at
+192 (224 with guidance) units. Integer division makes this a staircase:
+distances 33/65 still return 100%; the first 99% values are 34/66. The
+guidance blueprint therefore adds at most 20 percentage points, rather than
+implementing the text's "+25%" as a multiplier. Units are whole world
+units (16.16 fixed point shifted right 16); their player-facing scale is
+not yet measured.
+
+**Verification (2026-10-15).** Rechecked the instructions in
+`build/flat/full_disasm.txt` and `build/flat/gog_disasm.txt`. The signed
+`sar 16` is applied to each coordinate difference **before** the hypotenuse,
+so negative fractional deltas round down, not toward zero. The hypotenuse
+itself is truncated: ISO `0x5d488` calls `0x5ede2`, whose temporary x87
+control-word high byte `0x1f` selects round-toward-zero before `frndint`;
+GOG `0x5a238` calls the identical helper at `0x5bb52`. The previous
+`round(sqrt(...))` description was wrong. For example, whole deltas (33, 8)
+give distance 33 and 100%, not rounded distance 34 and 99%. At (34, 0) the
+answer is 99%; at (191, 0) it is 1%; at (192, 0) it is 0%.
+
+**What this verifies.** The targeting/report percentage is confirmed, and
+the colony launch path also stores that value on each selected missile:
+ISO `0x4e900` computes it once, `0x4e962..0x4e970` passes it in ECX to
+`0x210e4`, and `0x210e7` writes CL to missile byte `+0x0a`. That establishes
+a gameplay input, not just UI text. The eventual consumer of that byte and
+its exact hit/miss comparison are not yet traced here; this percentage
+must not be presented as a measured arrival rate or a guaranteed outcome.
 
 Callers (ISO): the targeting list header `FUN_0003b0e4` (the "100 if own
 asteroid, else formula" path — the missile targeting screen's strike-chance

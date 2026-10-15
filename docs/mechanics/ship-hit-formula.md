@@ -137,7 +137,7 @@ roll = rng_next(101)
 if roll <= shot.lifetime:  → shot enters its end state
 dx = (target.x − launcher.x) >> 16        ; whole units
 dy = (target.y − launcher.y) >> 16
-dist = round(sqrt(dx² + dy²))
+dist = floor(sqrt(dx² + dy²))              ; same truncating distance helper
 s = dist − (launcher_speed_byte + target_speed_byte)    ; both +0x50 bytes
 c = min(s, 160) − 32
 x = c / 3                                  ; signed division
@@ -157,17 +157,22 @@ Unchanged from `weapons.md` (confirmed): the targeting dialog's
 `0x20cb4` / ISO `0x21104`):
 
 ```
-dist = 2-D distance between launcher and target (whole units, Z ignored)
+dx = (target.X - launcher.X) >> 16     ; signed arithmetic shift
+dy = (target.Y - launcher.Y) >> 16
+dist = floor(sqrt(dx*dx + dy*dy))      ; 2-D only, Z ignored
 base = 32  (64 if the launcher's race owns the Missile Guidance System
             blueprint — per-race blueprint byte, ISO 0xcc43 / GOG 0xc567)
 chance = dist ≤ base ? 100
        : max(0, 100 − (dist − base) * 100 / 160)    ; integer division
 ```
 
-Own asteroid → fixed 100 (the header special-case). 0 % at 192 units
-(224 with guidance). This is an estimate of the missile's chance to arrive;
-the impact itself always hits (see section 2: the first shot is spawned
-without the roll flag).
+Own asteroid → fixed 100 (the header special-case). Integer division leaves
+100% through distance 33 (65 with guidance); 0% starts at 192 units
+(224 with guidance). The colony launch path stores the percentage in each
+missile's `+0x0a` byte, but its eventual hit/miss consumer is not yet traced;
+see the verification in `weapons.md`. The surface impact machine's initial
+unrolled shot (section 2) does not establish that an inter-asteroid missile
+always arrives.
 
 ## Worked examples
 

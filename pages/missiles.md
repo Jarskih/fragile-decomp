@@ -60,46 +60,50 @@ many missiles each ship holds — and a ship's **Strike Rate**. Ships can be
 ordered to **Attack** an asteroid or **Intercept** a hostile fleet, and a
 fleet that is fighting is shown **In Combat**.
 
-## Strike chance: how likely a missile is to hit
+## Strike chance: the targeting estimate
 
-*Status: read from the game's code and confirmed. The player-facing scale of
-the distance "units" below has not been measured yet (?).*
+*Status: the displayed calculation is confirmed and is also supplied to
+launched missiles. Its exact use in resolving hits and misses, and the
+player-facing scale of the distance "units" below, are not yet confirmed.*
 
-Every missile attack has a **strike chance** — the share of launched missiles
-the game expects to reach the target asteroid. The game shows it as a
+The game gives missile targeting a **strike chance** estimate, shown as a
 percentage in two places: the missile targeting dialog ("Strike chance:
 %d%%") and the spy report "Report of enemy missile launch" that warns you
 when an enemy colony fires at one of your asteroids.
 
-The strike chance depends on exactly one thing: the straight-line distance
-between the launching asteroid and the target.
+The estimate depends on the distance between the launching asteroid and
+the target, and on whether the launcher's owner has the **Missile Guidance
+System**. It uses two-dimensional straight-line distance, ignoring height.
+First, each signed coordinate difference is rounded down to a whole unit;
+then the resulting straight-line distance is rounded down to a whole unit.
 
-- Inside the **full-accuracy range** the chance is **100%**.
-- Beyond it, the chance falls by **1 percentage point for every 1.6 units**
-  of extra distance.
+- The calculation has a distance allowance of **32 units**, increased to
+  **64 units** by the Missile Guidance System.
+- At or below that allowance the estimate is **100%**. Beyond it, multiply
+  the extra distance by 100, divide by 160, discard the fraction, and
+  subtract the result from 100. This gives a stepped decline averaging
+  **1 percentage point per 1.6 units**; distance 33 still shows 100%, and
+  distance 34 shows 99% (65 and 66 respectively with guidance).
 - It reaches **0% at 192 units** and stays there — the game never shows a
   negative chance.
 
-The **Missile Guidance System** blueprint from Sci-Tek doubles the
-full-accuracy range, from **32 units to 64 units**. In practice that adds up
-to 20 percentage points of strike chance (the brochure's "+25%" is
-approximate) and pushes the 0% point out to **224 units**. The **Asteroid
-Tracker** blueprint does not change the chance at all — it only installs the
-estimate on the targeting screen, which is exactly what the brochure's own
-text promises ("adds a strike-accuracy estimate to the missile targeting
-screen"); without the tracker the game shows no strike chance.
+Guidance adds up to **20 percentage points** to the estimate, rather than
+multiplying it by the brochure's "+25%", and pushes the 0% point out to
+**224 units**. The **Asteroid Tracker** blueprint enables the estimate on
+the targeting screen without changing it; without the tracker the game
+shows no strike chance there.
 
 Nothing else enters the calculation: every missile kind uses the same
 chance, and the target's defences do not affect the displayed number
 (defences reduce damage by shooting warheads down in flight, which is a
 separate matter).
 
-Worked examples (the distance scale is the same one the game uses
-everywhere; the player-facing meaning of one unit is not yet measured ?):
+Worked examples, using the whole-unit distance calculated above:
 
 | distance | strike chance | with Missile Guidance System |
 |---|---|---|
-| up to 32 units | 100% | 100% |
+| up to 33 units | 100% | 100% |
+| 34 units | 99% | 100% |
 | 48 units | 90% | 100% |
 | 64 units | 80% | 100% |
 | 80 units | 70% | 90% |
@@ -112,12 +116,6 @@ everywhere; the player-facing meaning of one unit is not yet measured ?):
 | 192 units | 0% | 20% |
 | 208 units | 0% | 10% |
 | 224 units and beyond | 0% | 0% |
-
-So attacking a near neighbour is effectively free of misses; an attack
-from medium range can expect only about half of its missiles to arrive;
-and — until the Guidance System is installed — a launch from 192 units or
-further has a 0% strike chance: no missile is expected to reach the target
-at all.
 
 ## How a firing ship behaves
 
