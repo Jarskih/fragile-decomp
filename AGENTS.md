@@ -118,9 +118,10 @@ Stage numbering in `scripts/`:
   (`build/flat/FRAGILE.EXE.gog.flat` → `build/decomp/FRAGILE.EXE.gog.flat/`);
   the GOG flat's entry point is image-relative 0x14, identical to the ISO build.
   Its prerequisite `make gog-flat-analyze` supplies the optional `code_end`. The
-  GOG rename entries in the shared map live at addresses >= 0x80000 and do not
-  collide with the ISO entries (< 0x80000), so `make names` applies the right
-  set per program.
+  shared map holds names for both builds in one address space (most GOG game
+  functions are below 0x80000; GOG data tables are keyed by DS displacement,
+  flat = displacement + 0x86004). `make names` applies an entry wherever its
+  token occurs in a program's export, so check the docs before reusing a key.
 - `08` strings sweep
 - `09` data-file format survey (magic/entropy/header probes)
 - `10` DOSBox(-X) runtime tracing (INT 21h/file-open log, disc check)

@@ -1,6 +1,6 @@
 # Diplomacy: opinions, pacts, treaties and offers
 
-Status: probing (reference-build static disassembly + first GOG-build runtime
+Status: probing; partly overturned 2026-10-18 (see the correction box below; reference-build static disassembly + first GOG-build runtime
 dump decoded — see "Runtime verification" below; the pact/treaty node
 machinery roles are read from the recovered bodies and cross-checked against
 the game's own text resources, which use the vocabulary Non-Aggression Pact /
@@ -9,6 +9,25 @@ Source: `build/named/FRAGILE.EXE.flat/decompiled.c` (reference ISO build; the
 GOG-build addresses in `main-loop.md` do **not** match this image) and
 `build/dumps/ram_1cd67000.bin` (GOG build under DOSBox, game at the
 diplomacy screen, dumped 2026-08-07).
+
+> **Corrected 2026-10-18 -- read first.** The GOG-build analysis in
+> `alien-ai-trade-victory.md` (sections 6 and 10) overturns several readings
+> in this reference-build note: (a) the per-pair matrix cells are
+> **hostility** values, not opinions/friendliness (0x7fff = +1.0 = maximum
+> hostility); a runtime cell of -1.0 (0x8000) is a **Non-Aggression Pact in
+> force**, not a war; (b) `war_node_create` (GOG 0x4844 `nap_create`) is the
+> NAP creator and `pact_node_create` (GOG 0x45c4 `jct_create`) the Joint
+> Combat Treaty creator; (c) the "formal treaty / embargo" and "war" bitsets
+> are the known / declared / contacted bitsets; (d) `offer_amount_calc_a` is
+> the offered duration in days (90..1800); (e) the "tribute amount" branch of
+> the daily tick is the normal incident-push path in the GOG build, not a dead
+> path; (f) the "tables in code" regions (0x9c58.. 0x9ca3, 0x9d64 ...) are
+> real static data in the GOG build, readable at flat = displacement +
+> 0x86004. Also, GOG 0x8544 / 0xcbd4 (called `race_relations_tick` /
+> `fleet_activity_tick` elsewhere) are the Colony Supervisor and Agent pool
+> ticks, not diplomacy (`economy-and-personnel.md`). The sections below keep
+> the reference-build text as written; where they conflict with the above,
+> the above wins.
 
 This note documents how race-to-race diplomacy is implemented: the per-pair
 opinion matrices, the pact/treaty node machinery, the incident/violation
@@ -54,7 +73,7 @@ are unconfirmed**; the matrix cells themselves are runtime data.
 | 0xd086 | 2 | short matrix, first opinion component; can be negative (clamped ±0x8000/0x7fff) | many |
 | 0xd088 | 2 | short matrix, third component: the decaying/boosted value (`relations_daily_tick` decays it toward the 0xd06a floor; tribute adds `0xd0c3[col] * 0xd0a6`); the `>0` test drives 0xd04a | 0x56c4, 0x5854 |
 | 0xd0a4 | 2 | **incident accumulator** `g_missile_count_table`: +1 per weapon fired at the column race (weapon-launch code ~0x519xx), += `sRam0000c0c6` per asteroid collision (0x112f4); drained to zero every tick into 0xd194; subtracted from treaty budgets by `treaty_list_tick` | 0x519xx, 0x112f4, 0x56c4, 0x52d4 |
-| 0xd0a6 | 2 | per-pair "tribute amount" — read by 0x56c4 (while nonzero: set 0xd230 bit, `d15c += amount`, opinion += `0xd0c3[col]*amount`, reset 0xd120) but **no static writer found** in this build: dormant/dead path (?) | 0x56c4 |
+| 0xd0a6 | 2 | per-pair "tribute amount" — read by 0x56c4 (while nonzero: set 0xd230 bit, `d15c += amount`, opinion += `0xd0c3[col]*amount`, reset 0xd120) but **no static writer found** in this build: dormant/dead path (?). Corrected 2026-10-18: in the GOG build this is the normal incident-push path fed by the incident matrix (`alien-ai-trade-victory.md` section 10 (e)); the "no writer" finding came from the one-column offset of the incident array | 0x56c4 |
 | 0xd0c3 | 1 | per-column multiplier used only by the 0xd0a6 path (code region, unconfirmed) | 0x56c4 |
 | 0xd0d2 | 1 | per-column daily decay amount for 0xd088 (code region, unconfirmed) | 0x56c4 |
 | 0xd120 | 4 | per-pair int "ticks since last tribute" counter | 0x56c4 |
@@ -215,6 +234,14 @@ swapped.
 
 ## Tribute contracts (economic side)
 
+> Corrected 2026-10-18 (hypothesis): `tribute_contract_tick` (0x86c4) and
+> `fleet_activity_tick` (0xcd34) are, by their pools, gates and main-state
+> position, the reference-build counterparts of the GOG Colony Supervisor
+> tick (0x8544) and Agent pool tick (0xcbd4), i.e. the "tribute" payments
+> below are most likely supervisor salaries / personnel-fund charges
+> (`economy-and-personnel.md` section 4), not diplomatic tribute. The text
+> below is kept as originally read.
+
 `tribute_contract_tick` (0x86c4) — runs in main state 8 gated by
 `iRam0000cda0` (the same enable that gates `fleet_activity_tick` 0xcd34):
 walks the per-race contract list at 0xc3ec and, once per day, credits each
@@ -275,38 +302,48 @@ the live dump, obj-3 base):
   | 13 | 0, +0.4 ×8, +0.1, +0.3, −0.1, +0.5, 0 |
   | 14 | 0, −0.3 ×8, −0.4, −0.15, **−1.0**, −0.15, −0.3 |
 
-  The −1.0 (0x8000) cells are the war state (pairs 9-11, 9-12, 10-12, 11-12,
-  11-2, 14-11 — the last two one-sided), confirming the 0x8000 clamp of the
-  war-declaration path. Race 13 is the only row without a −1.0 cell and is
-  positive to everyone (+0.4 to the empire slots, +0.5 to race 12): the
-  scenario's starting dispositions. The directed opinions are asymmetric
-  (e.g. 13→9 = +0.1 vs 9→13 = −0.1).
+  Corrected 2026-10-18: the cells are HOSTILITY (negative = friendly). The
+  −1.0 (0x8000) cells are **Non-Aggression Pacts in force** (pairs 9-11, 9-12,
+  10-12, 11-12, 11-2, 14-11 -- the last two one-sided), not wars. Race 13
+  (Mauna) is the only row without a −1.0 cell and has the highest hostility
+  toward everyone (+0.4 to the empire slots, +0.5 to race 12, i.e. strongly
+  hostile). The directed values are asymmetric (e.g. 13→9 = +0.1 vs
+  9→13 = −0.1). The earlier remark that these were "the scenario's starting
+  dispositions" of rows 1..8 is wrong: rows 1..8 are zero (the player's row
+  is zero too; section 6.2 of the AI note has the real starting values).
 
-- **the paired matrix at 0xc9c8** (0x1e bytes earlier in each row — the
-  second component of the pair, cf. the reference build's d086/d068 pair):
-  same scenario pattern with per-cell differences (row 14 col 9 = 0xCCCE,
-  row 13 col 10 = 0x7fff, …); the 0x55b4 code uses 0xc9c8 as the
-  "relation" input multiplied by the per-column rate 0xc9e6 into the
-  0xc9aa accumulator, so the two matrices are the drift driver and the
-  clamped opinion.
+- **the matrix at 0xc9c8** (Corrected 2026-10-18: this is the per-pair
+  *incident* array `X`, not a second opinion component; the baseline `B` is at
+  0xc98c): the 0x55b4 code multiplies the incident value by the per-column
+  gain 0xc9e6 into the 0xc9aa current-hostility cell and decays it by 0xc9f5
+  toward the baseline (`alien-ai-trade-victory.md` section 6.1). The values
+  quoted from this dump (row 14 col 9 = 0xCCCE, row 13 col 10 = 0x7fff, ...)
+  are therefore at best baselines/incident words, not a "relation" input.
 - **known-bits at 0xcb54** (per-row words): row 1 = 0x303; rows 9..14 =
   0x1a0 / 0x304 / 0x1ca / 0x26c / 0x37c / 0x245 — each active race's bit
   mask of other races it has state with; rows 2..8 = 0.
 - **accumulators**: 0xca40 all zero; 0xca7c = 2348 on every row (the per-row
   relation accumulator); **g_relations_target 0xc9ac all zero** (no AI
   relation target set at dump time).
-- The per-type threshold table at 0x967c (stride 0x1c) reads as real data in
-  the dump: row 0 = [400, 0, 1000, 0, 3000, 0, …] and rows 2+ carry plausible
-  cost-like values (25000/15000/10000/20000, 2000/4000/12000…) — the GOG
-  build's "tables are real data in the flat" holds for this block too.
+- The table at 0x967c (stride 0x1c) is the **Colony Supervisor table**, not
+  a diplomacy or per-type threshold table (Corrected 2026-10-18). The values
+  quoted here (row 0 = [400, 0, 1000, 0, 3000, 0, ...]) were read at the
+  dump base and do not match the static table (cause of the mismatch not
+  investigated); the authoritative 16 rows (salary 25000/15000/10000..., T2..T5
+  workload thresholds, performance cap, recovery penalty) are in
+  `economy-and-personnel.md` section 4.1.
 
-This runtime pass confirms the static reading: two directed opinion
-components per pair, 0x7fff/0x8000 clamps, per-race rows, war state as −1.0,
-and the empire-vs-alien row split (the six AMERICAN.SCR ambassadors are the
+This runtime pass confirms the static reading of the clamps and per-race rows
+(the "two directed opinion components" and "war state as -1.0" readings are
+overturned, see the box at the top), and the empire-vs-alien row split (the six AMERICAN.SCR ambassadors are the
 active races; the 1..8 slots are the federation/other slots, zero here).
 
 ## Open questions
 
+- Corrected 2026-10-18: the "unconfirmed code-region bytes" caveats below
+  (and in the table above) no longer apply to the GOG build: all these
+  per-race tables are static data readable at displacement + 0x86004
+  (`alien-ai-trade-victory.md` sections 6.2, 6.5).
 - The message texts behind DAT_0003a468..a5xx, a590, a598, a4f4, a1d8,
   a198, a41c, a338, 3a1c0 are all code-region constants (tables-in-code):
   ids unconfirmed; the game-text mapping (AMERICAN.TXT) is only inferred

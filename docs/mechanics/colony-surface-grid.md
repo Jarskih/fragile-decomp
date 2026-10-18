@@ -1,8 +1,16 @@
 # Colony surface grid: surface objects and crater/building cells
 
 Status: confirmed (static disassembly of the GOG flat,
-`build/flat/FRAGILE.EXE.flat` + `build/named/FRAGILE.EXE.flat/decompiled.c`)
+`build/flat/FRAGILE.EXE.gog.flat` + `build/named/FRAGILE.EXE.gog.flat/decompiled.c`)
 cross-checked against savegame dumps (`SAVEGAME.000`, `SAVEGAME.009`).
+Corrected 2026-10-18: the "tables in code" anomaly is resolved (static tables
+are at flat = displacement + 0x86004), and the "terrain-record table" at
+0xAB5C/0xAB69 below is, by address and stride, the 41-record Ship Yards CRAFT
+table (0xAB5C -> flat 0x90B60, stride 0x14; byte +0xD = class id,
+`vehicles.md`, `stat-tables-design-sheet.md` 2.1). The layer description is
+thus about records of that table; what the "surface objects" created from it
+actually are (starting craft?) is not established -- the access structure below
+is verified, the "terrain" label is not.
 Source: disassembly + savegame dump; runtime trace still deferred.
 
 ## The colony "grid" is three layers
@@ -26,11 +34,12 @@ three layers, per asteroid:
   stride **0xC** per asteroid type (entry = {start, ?, end}).
 - The loop bounds at 0x166F8/0x16700 are runtime-filled BSS; no static writer
   was found (the new-game setup 0x228e4 is the suspected filler, unrecovered).
-- **Anomaly note**: 0xAB69 lies in the code region of the flat (the bytes
-  decode as instructions), the same "tables in code" problem documented for
-  0x9c9c/0x9cd8/0x9cb0/0x9d78/0x9da0 in `asteroid-spawning.md`. The record
-  values (subtype bytes) are therefore **unverified statically**; the access
-  structure is verified.
+- Resolved 2026-10-18: 0xAB69 is a DS displacement; the bytes are static at
+  flat 0x90B6D (record 0 +0xD) and are the craft class ids, see the status
+  note. (The old "anomaly" was the displacement read as a flat offset, as for
+  0x9c9c/0x9cd8/0x9cb0/0x9d78/0x9da0 in `asteroid-spawning.md`.) The per-record
+  values are therefore readable statically; they were not tabulated for this
+  note.
 
 ## Surface-object creation at asteroid creation
 
@@ -61,8 +70,9 @@ three layers, per asteroid:
 | +0x50 | word from 0xAB5E (record-derived) |
 | +0x52 | byte from 0xAB5F (record-derived) |
 
-The record-derived fields come from the 0xAB5x region (code-like bytes, same
-anomaly — runtime values unverified).
+The record-derived fields come from the 0xAB5x region (the craft table, static
+at flat 0x90B60+; armour +2 at 0xAB5E, speed +3 at 0xAB5F, hardpoints +4 at
+0xAB60).
 
 ## Cells: the actual grid coordinates
 
@@ -141,8 +151,8 @@ DOSBox-X trace or gap-function disassembly.
 
 - Where/when `Create_Surface_Map` is called (colony-view entry? colonisation?)
   and how the cells' 6 grid words are computed — needs a trace.
-- Runtime values of the record table 0xAB5x and the bounds 0x166F8/0x16700
-  (code-like bytes in the flat; same anomaly as the other "tables in code").
+- The bounds 0x166F8/0x16700 (BSS; the record table 0xAB5x is static, see the
+  status note).
 - The role of the 6 words per building cell (construction stages? sub-sprite
   positions?) and the 0x33258 scale table values.
 - The per-type record ranges: what fills 0x166F8 (suspected: the new-game
@@ -159,6 +169,6 @@ DOSBox-X trace or gap-function disassembly.
 - Savegame dumps: `Fragile Allegiance/_SAVE/SAVEGAME.000` and `.009`
   (home node 0x03A21C, seed 0x50269FDC, size 27, empty +0x0C lists).
 - `docs/mechanics/asteroid-spawning.md` — terrain grid generation, node
-  layout, "tables in code" anomaly.
+  layout and the static-table addressing note.
 - `docs/mechanics/asteroid-field-maintenance.md`, `docs/dataformats/
   savegame-format.md` — pool/node and save section layouts.

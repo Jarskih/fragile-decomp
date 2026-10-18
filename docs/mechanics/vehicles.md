@@ -1,10 +1,18 @@
 # Vehicles (ships): roster, construction and the stat tables
 
-Status: probing — the roster, the construction rules and several concrete
-stats are confirmed from the game's own text resource; the per-class numeric
-stat table is **not** yet recoverable statically (see "the stat tables").
+Status: **confirmed** for the roster, the construction rules and the
+per-class numeric stat table of the 10 Terran craft plus the 31 alien craft
+(price, build time, armour, speed in FN, hardpoints, ore pair), which is
+real static data in the GOG build (decoded 2026-10-18, see "The craft stat
+table"); **probing** for the meaning of a few record bytes (range, alt days,
+alien-craft bytes +6/+7) and for everything that is only computed at runtime
+(default hardpoint loadouts, attack/defence ratings). The earlier
+"not statically recoverable" conclusion applied to the ISO flat's
+displacement reads and is overturned for the GOG build.
 Source: game text resource (`_TEXT/AMERICAN.TXT`, the same resource the game
-displays) + static disassembly of the current flat.
+displays) + static disassembly of the current flat + the GOG flat
+`build/flat/FRAGILE.EXE.gog.flat` (craft table at 0x90B60, flat = DS
+displacement + 0x86004).
 
 ## Build identity — read this first
 
@@ -48,16 +56,19 @@ appear as consecutive tokens:
 | 120123 | Command Cruiser | Command Cruisers (120789) |
 | 120139 | Spy Satellite | Spy Satellites (120806) |
 
-The blueprint ships (names at 120153–120280): Lazzaro Research, Delphini
-Assault, Messier-Lukannon, Transportation, Observatory, Rattlesnake,
-WidowMaker, HeartsBlood, Morning Glory, SkyMech. The alien vessels (120288–
-120663): Hiero, Ylikt-shan, Falari-Lourn, Ruth-Strivakh, Na-Xanth, Gerla-Kans
-Explorer, All-Purpose Assault, Shielded Multi-Assault, Ultimate Mk II,
-Hardcore, Geostationary Construction, Surveillance Craft Type 5, Combat Craft
-Type 1.5, Max Combat Craft Type 6, Elite Command Craft, Transportation Craft
-Type 3, Orbital Construction Area, Hunter/Prospector, Dedicated Fighter,
-Dedicated Ore Transporter, Orbital Shipyard. The game gives the player no
-further description of these; their exact roles are unconfirmed.
+The names at 120153–120280 (Lazzaro Research, Delphini Assault,
+Messier-Lukannon, Transportation, Observatory, Rattlesnake, WidowMaker,
+HeartsBlood, Morning Glory, SkyMech) and 120288–120663 (Hiero, Ylikt-shan,
+Falari-Lourn, Ruth-Strivakh, Na-Xanth, Gerla-Kans Explorer, All-Purpose
+Assault, Shielded Multi-Assault, Ultimate Mk II, Hardcore, Geostationary
+Construction, Surveillance Craft Type 5, Combat Craft Type 1.5, Max Combat
+Craft Type 6, Elite Command Craft, Transportation Craft Type 3, Orbital
+Construction Area, Hunter/Prospector, Dedicated Fighter, Dedicated Ore
+Transporter, Orbital Shipyard) are one continuous list of **31 alien-race
+craft**, craft ids 10-40 of the stat table below (the earlier split into
+"blueprint ships" and "alien vessels" was wrong: they are not Sci-Tek
+items). The game gives the player no description of them; each record names
+the Terran class it parallels (scout, destructor, ..., dock).
 
 The weapon/shield hardpoint items (120957–121140): Ion Cannon, Disruptor,
 Napalm Orb, Chaos Bomb, Vortex Mine, Laser, Photon Cannon, Plasma Cannon,
@@ -85,10 +96,14 @@ descriptions and the blueprint "parts" screens in `_TEXT/AMERICAN.TXT`):
 
 Speed unit: the game displays ship speeds as **FN** (binary panel format
 `%S: %d FN`, flat 0x8F21A). What "FN" abbreviates is not stated by the game.
+The FN number of each class is byte +3 of its stat record (below): the
+Terminator and Fleet Battleship records both read 2, matching the text.
 
 The remaining per-class numbers — cost, build time in days, hull strength,
-speed per class, and hardpoint counts for the ships the text does not
-describe — are **not confirmed yet** (see below).
+speed per class and hardpoint counts — are decoded in "The craft stat table"
+below; the Terminator (4), Fleet Battleship (6) and Command Cruiser (6)
+hardpoint counts and the 2 FN of the Terminator and Fleet Battleship from the
+text are reproduced exactly by the records.
 
 ## How vehicles are made (game text)
 
@@ -168,44 +183,90 @@ describe — are **not confirmed yet** (see below).
   byte nodes (the doc's 1300×84 pool); in the provided saves it contains only
   free-list nodes, so no ship instances are available for field verification.
 
-## The stat tables — open question
+## The craft stat table (GOG build, decoded)
 
-The per-class numeric records (cost, build time, hull, speed, hardpoint
-counts) are read by the ship code from addresses in the code/data region that
-hold **instruction-like bytes in the flat** ("tables in code", same anomaly
-as the asteroid tables documented in `asteroid-spawning.md`): e.g.
-`word[0x9f84 + type*14]` in the fleet-activity path, the hardpoint weapon
-table at 0xa4ac (which sits inside a real function's byte stream), and the
-per-type slot words. No code writes these addresses statically; their
-runtime values are therefore not recoverable from the flat. This is exactly
-the documented "runtime trace required" situation:
+The per-class records are **static data** in the GOG flat: 20-byte records at
+flat `0x90B60` (the code reads them through displacement `0xAB5C`; flat =
+displacement + 0x86004, see `building-stat-table.md` "Addressing"). The ISO
+build's copy (0x99248) was reported byte-identical for the first ten records
+in `scitek-blueprints.md`; it was not re-compared in this revision. The
+table holds **41 records**: ids 0-9 are the Terran craft in the order of the
+name list (text 1462-1471) and ids 10-40 the 31 alien craft (text 1472-1502,
+which are exactly the "blueprint ships" and "alien vessels" of the roster
+above - they are alien-race craft, not Sci-Tek items).
 
-- No ship instances exist in the provided saves (the SHIPS section is a free
-  list), so the save-diff technique cannot recover per-ship stats either.
-- The in-game Ship Yards screen is the authoritative display, but reading it
-  requires a runtime session (DOSBox debug build with a memory dump — the
-  repo's deferred item from `docs/INSTALL.md` / `scripts/10_dosbox_trace.sh`).
-- Until then, treat every unverified number in the table above as
-  `?`. What is confirmed: the roster, the construction pipeline, the
-  hardpoint system, the confirmed per-ship figures listed above, and the
-  fleet rules.
+Record layout (the Ship Yards panel code at GOG 0x3B6C4 reads these fields
+and defines their meaning):
+
+| offset | field |
+|---|---|
+| +0 u16 | range (0 for the stationary Space Dock; initial value of the craft's range field, feeds the target-search radius, GOG 0x1DA94) - role inferred |
+| +2 u8 | base armour (shields add their item bonus) |
+| +3 u8 | speed in FN (the craft's speed after construction; a Refuelling Depot restores it, GOG 0x1C184) |
+| +4 u8 | hardpoint count |
+| +5 u8 | build time in days (construction countdown, decremented once per game day while a powered Ship Yard exists; the panel shows it less 25% with Construction Droids) |
+| +6 u8 / +7 u8 | ore 1: type (0 Selenium, 1 Asteros, 2 Barium, 3 Crystalite, 4 Quazinc, 5 Bytanium, 6 Korellium, 7 Dragonium, 8 Traxium, 9 Nexos) / amount shown |
+| +8 u8 / +0xC u8 | ore 2: type / amount |
+| +0xD u8 | class id (equals the id for Terran craft; alien craft name their Terran counterpart) |
+| +0xE u16 | alternate days (only read by the AI spawn roll) - role inferred |
+| +0x10 u32 | price in Cr (0 for alien craft) |
+
+The Terran craft:
+
+| type | Craft | Price (Cr) | Build time (days) | Armour | Speed (FN) | Hardpoints | Range | Ore 1 | Ore 2 | Alt days |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | Assault Fighter | 6,000 | 20 | 20 | 4 | 1 | 160 | 2 Selenium | 2 Crystalite | 25 |
+| 1 | Combat Eagle | 12,000 | 30 | 20 | 4 | 2 | 160 | 4 Selenium | 4 Crystalite | 30 |
+| 2 | Scoutship | 3,000 | 20 | 5 | 3 | 1 | 192 | 4 Selenium | 2 Crystalite | 20 |
+| 3 | Destructor | 15,000 | 48 | 40 | 2 | 3 | 160 | 8 Selenium | 6 Crystalite | 50 |
+| 4 | Terminator | 34,000 | 60 | 50 | 2 | 4 | 160 | 8 Selenium | 2 Dragonium | 50 |
+| 5 | Transporter | 24,000 | 100 | 40 | 2 | 2 | 192 | 6 Selenium | 1 Dragonium | 30 |
+| 6 | Fleet Battleship | 60,000 | 80 | 70 | 2 | 6 | 160 | 8 Selenium | 6 Dragonium | 60 |
+| 7 | Space Dock | 150,000 | 110 | 120 | 0 | 4 | 0 | 10 Bytanium | 15 Dragonium | 70 |
+| 8 | Command Cruiser | 300,000 | 120 | 250 | 2 | 6 | 320 | 10 Barium | 18 Korellium | 70 |
+| 9 | Spy Satellite | 10,000 | 16 | 1 | 4 | 0 | 320 | 2 Barium | - | 0 |
+
+Checks that fix the mapping: Terminator 4, Fleet Battleship 6 and Command
+Cruiser 6 hardpoints and the 2 FN of the Terminator and Fleet Battleship
+agree with the game text; the ten ore pairs reproduce, craft by craft, the
+ore-use text (small craft Selenium + Crystalite, Destructor Selenium +
+Crystalite, Terminator / Transporter / Fleet Battleship Selenium + Dragonium,
+Space Dock Bytanium + Dragonium, Command Cruiser Barium + Korellium, Spy
+Satellite Barium); the record order equals the name-list order and the
+Space Dock is the only record with speed 0 and range 0.
+
+Panel arithmetic (GOG 0x3B6C4): displayed cost = record price + the prices of
+the fitted hardpoint items; displayed armour = base armour + the armour bonus
+of the fitted shields (Shield x10..x50 = +10..+50); displayed build time = the
+record value, less `floor(t/4)` if the Construction Droids blueprint is owned.
+The 16 hardpoint items (prices 1,000-12,000 Cr, GOG 0x90A0C) and the Sci-Tek
+prices are tabulated in `stat-tables-design-sheet.md`.
+
+The 31 alien craft (price 0, AI-built) follow in the same table; their
+record is tabulated in `stat-tables-design-sheet.md` section 2.2. The race
+groups are inferred from the name-list order and vocabulary: ids 10-14
+Rigellian, 15-19 Braccatian, 20-24 Mikotaj, 25-30 Artemian, 31-36 Maunid,
+37-40 Achaean (these are craft-id groups; the race ids of the six cultures are 9..14 in this order, `alien-ai-trade-victory.md` section 0); each group ends with its stationary dock-class craft
+(Observatory, SkyMech, Na-Xanth, Geostationary Construction, Orbital
+Construction Area, Orbital Shipyard).
+
+Still runtime-only: the **default hardpoint loadout** of each class (6 item
+ids per class; the table at GOG flat `0x9B2EC`, memdump offset `0x263308`, is
+zero in the file and filled when the Ship Yards screen opens), the attack and
+defence figures shown for a design, and the caption strings.
 
 ## Open questions
 
-- The per-class numeric stat table (costs, build times, hull, speed,
-  hardpoints) — needs a runtime trace; the flat bytes at the table addresses
-  are code-like. Two related price families ARE readable as static data:
-  the 10-record Ship Yards per-item table (ISO 0x99248 / GOG 0x90B60,
-  prices 6,000–300,000 Cr, days 0–70) and the 12-record stat table
-  (ISO 0x9806C / GOG 0x8F984) — decoded in `scitek-blueprints.md`, "The
-  price tables"; which record names which craft is still open.
-- Which TXT tokens the Ship Yards displays for the base ships' descriptions,
-  and whether the 10 "blueprint ships" (Lazzaro Research … SkyMech) map 1:1
-  onto ship classes or onto variants of them.
-- The exact meanings of "FN" and of the fleet-node flag bits (+0xa).
+- The meaning of the craft record's range word (+0) and alternate days (+0xE),
+  and of bytes +6/+7/+8 for the alien craft (255 = none).
+- The default hardpoint loadouts and the attack / defence ratings (runtime
+  tables, see above).
+- The exact meaning of "FN" (the text never expands it) and of the fleet-node
+  flag bits (+0xa).
+- The ISO build's craft table: expected identical, not re-compared here.
 - The GOG-vs-reference build identity of the older docs' address tables (see
   "Build identity"); the repo should eventually re-baseline those tables onto
-  the current image or record which artifacts were made from the GOG build.
+  the GOG image or record which artifacts were made from which build.
 
 ## References
 
@@ -220,3 +281,8 @@ the documented "runtime trace required" situation:
 - `docs/mechanics/main-loop.md`, `asteroid-spawning.md` — the same subsystems
   at GOG-build addresses; see the build-identity note.
 - `docs/dataformats/savegame-format.md` — SHIPS section layout.
+- `docs/mechanics/stat-tables-design-sheet.md` — craft, hardpoint item,
+  missile and building tables with provenance.
+- `build/flat/FRAGILE.EXE.gog.flat` 0x90B60 (craft table), 0x90A0C (item
+  prices), `build/flat/gog_disasm.txt` 0x3B6C4 (Ship Yards panel), 0x19354 /
+  0x19284 (craft creation), 0x1C184 (speed refresh).

@@ -53,10 +53,10 @@ help:
 	@echo "  make names          mirror decompiled.c to build/named/ with curated"
 	@echo "                      names from config/ghidra/rename-map.json (processes"
 	@echo "                      every program under build/decomp/, ISO and GOG)"
- 	@echo "  make messages       catalog of every message the player can receive"
- 	@echo "                      (AMERICAN.TXT notifications + AMERICAN.SCR dialogue)"
- 	@echo "                      -> build/reports/messages-catalog.md/.json"
- 	@echo "  make all            full pipeline (download..names)"
+	@echo "  make messages       catalog of every message the player can receive"
+	@echo "                      (AMERICAN.TXT notifications + AMERICAN.SCR dialogue)"
+	@echo "                      -> build/reports/messages-catalog.md/.json"
+	@echo "  make all            full pipeline (download..names)"
 	@echo "  make clean          wipe build/ (derived artifacts only; iso/ untouched)"
 
 check:

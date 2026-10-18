@@ -1,8 +1,11 @@
 # Asteroid spawning on the new default game
 
 Status: confirmed (static disassembly of the GOG retail build,
-`build/flat/FRAGILE.EXE.flat` + `build/named/FRAGILE.EXE.flat/decompiled.c`).
-Source: disassembly; runtime trace still deferred.
+`build/flat/FRAGILE.EXE.gog.flat` + `build/named/FRAGILE.EXE.gog.flat/decompiled.c`).
+Corrected 2026-10-18: the "tables in code" anomaly below is resolved -- the
+static tables are read at flat = displacement + 0x86004 and their values are
+now recorded (see "Static table values").
+Source: disassembly + static table reads; runtime trace still deferred.
 
 ## Terminology: "galaxy" is the game's "asteroid"
 
@@ -53,15 +56,30 @@ addresses and struct offsets are not. Notable GOG-side differences:
 | `g_asteroid_ptr` | 0xc3c4 | **0xbcf8** |
 | object-list sentinel | 0xc3f4 | **0xbd18** |
 
-Important: the reference build's "missing static tables" problem
-(`asteroid-creation.md` open question) exists in the GOG build **too** — the
+Corrected 2026-10-18 (the earlier "tables in code" warning is withdrawn): the
 10-word tables at 0x9c9c and 0x9cd8, the auto-spawn gate table 0x9cb0, the
-speed table 0x9d78, the direction table 0x9da0 and the sin/cos tables
-0x7eaf0/0x7eb70 all hold **code-like bytes in the flat** (verified: they
-decode as executable instructions and no relocation record targets them).
-The game reads those addresses as data at runtime; whether the flat bytes are
-the actual values or the tables are written at runtime is unresolved without a
-trace (same open question as the reference build).
+speed table 0x9d78, the direction table 0x9da0 and the arena table 0x1663c
+are DS displacements; the static tables live at **flat = displacement +
+0x86004**, and reading the displacement itself as a flat offset hit code (the
+source of the "code-like bytes"). Only the sin/cos tables 0x7eaf0/0x7eb70 are
+genuinely runtime-filled (BSS). The reference build resolves the same way at
+displacement + 0x8E004 (not re-read). Values: see "Static table values".
+
+### Static table values (read 2026-10-18 from the GOG flat)
+
+| table (displacement) | flat | values |
+|---|---|---|
+| 0x9c9c, 10 words | 0x9FCA0 | start-value set 1: 1000, 500, 500, 750, 100, 100, 50, 100, 10, 6 |
+| 0x9cd8, 10 words | 0x9FCDC | start-value set 2: 10, 7, 10, 5, 8, 20, 0, 65, 1, 2 |
+| 0x9cb0, 3x3 bytes (row = arena size, column = density) | 0x9FCB4 | ceiling 30, 45, 60 / 40, 60, 80 / 50, 75, 100 |
+| 0x1663c, 3 byte pairs | 0x9C640 | arena size in cells (x, y): 24x15 / 29x18 / 32x20 |
+| 0x9d78, 16 bytes | 0x9FD7C | speed table: 0,0,1,1,1,1,2,2,2,2,2,3,4,4,3,3 |
+| 0x9da0, first 12 bytes | 0x9FDA4 | direction base table: 6,6,7,7,8,10,12,15,25,35,45,59 (the following bytes 57,56,55,54 are the next table) |
+
+(Per-row consumer semantics are unchanged below; the value of the ten starting
+values per ore is documented in `ore-and-mining.md`. "Row = arena size,
+column = density" follows `alien-ai-trade-victory.md` section 3.2, where the
+settings are described.)
 
 ## The new default game = single-player campaign
 
@@ -422,8 +440,7 @@ dir   = (byte)[obj+0x42]                  ; +0x42: direction index
 **Speed/direction are rolled at placement**: `asteroid_finalize` (0x11904)
 sets `[+0x41] = table[0x9d78 + rng_next(16)]` (speed; 16-entry table) and
 `[+0x42] = table[0x9da0 + rng_next(12)] - 5 + rng_next(10)` (direction;
-12-entry table). Both tables hold code-like bytes in the flat — the exact
-runtime values are unconfirmed (see the anomaly note above). The drift step
+12-entry table). Both tables are static data (values in "Static table values"). The drift step
 is `speed/12` px per day.
 
 **Movement verified from saves.** Speed `[+0x41]` is a discrete 0..5; speed-0
@@ -441,8 +458,8 @@ spawn rule (new asteroids appear near the oldest asteroid of their type —
   `(180 % size_x, 180/size_x + 1)` (180 = 0xb4; the same cell every new
   game — the formula does not depend on the seed), pixel position
   `((cell·0x20 - 0x10) << 16)` on both axes, `size_x` from the per-scenario
-  byte-pair table at 0x1663c (index = `[0x16610]`), runtime-filled from the
-  scenario/DCONFIG setup (reader unrecovered; values unconfirmed statically).
+  byte-pair table at 0x1663c (index = `[0x16610]`, the arena-size index
+  `g_arena_size_index`): static values 24x15 / 29x18 / 32x20 cells.
 - **The ore seams on its surface**: the size parameter drives the seam ring
   positions — `asteroid_init_by_type` (0x18264) writes the 4-byte seam
   offset field `[+0x1c4..+0x1c8]` from `(size/2 + k) · trig_table[rand+36] >> 16`
@@ -484,8 +501,9 @@ if table[0x9cb0][ [0x16611] + 3*[0x16610] ] > [0xc344]:   ; 3-wide spawn table
 
 `[0xc344]` is the running asteroid counter (bumped in `asteroid_create`), so the
 gate table value per scenario row is effectively the **per-scenario asteroid
-ceiling** (≤ the 100-node pool). The gate table sits at 0x9cb0 — code-like
-bytes in the flat, values unconfirmed statically. The spawned asteroids get
+ceiling** (≤ the 100-node pool). The gate table sits at 0x9cb0 (flat 0x9FCB4); its values are 30/45/60,
+40/60/80, 50/75/100 (Corrected 2026-10-18: the earlier "unconfirmed" note is
+obsolete). The spawned asteroids get
 their asteroid content on entry via the regeneration chain
 (`asteroid_regenerate`), and the per-type slot bookkeeping (0xcb5c/0xcb5d,
 stride 0x208) counts asteroids of each type 0..14.
@@ -503,15 +521,13 @@ stride 0x208) counts asteroids of each type 0..14.
   gap.
 - The 12 ring objects are decorative scenery (visual-only nodes, see
   `asteroid_gen_ring_objects`); the game names no such object.
-- The runtime values of every "table in code" (0x9c9c, 0x9cd8, 0x9cb0,
-  0x9d78, 0x9da0, 0x7eaf0, 0x7eb70) and of the arena-size table 0x1663c are
-  unconfirmed until a runtime trace — the flat bytes at those addresses
-  decode as instructions, not data. (The speed table 0x9d78 and direction
-  table 0x9da0 feed `asteroid_finalize`; the sin/cos pair 0x7eaf0/0x7eb70 is
-  generated at runtime at 0x20fb4 — a 320-entry `fsin` fill.) The ore
-  tables (0x9cf8, 0x9e54..0x9eb3, 0x9f48/0x9f60, 0xa41e..0xa45b, 0xa476,
-  0xaf34, 0x16644, 0x36277) are likewise runtime-filled; their values were
-  recovered empirically from saves — see `docs/mechanics/ore-and-mining.md`.
+- Resolved 2026-10-18: the "tables in code" (0x9c9c, 0x9cd8, 0x9cb0, 0x9d78,
+  0x9da0, 0x1663c) are static data at displacement + 0x86004 (values above).
+  The sin/cos pair 0x7eaf0/0x7eb70 stays runtime-generated (0x20fb4, a
+  320-entry `fsin` fill). The ore tables (0x9cf8, 0x9e54..0x9eb3,
+  0x9f48/0x9f60, 0xa41e..0xa45b, 0xa476, 0xaf34, 0x36277) are also readable
+  statically at +0x86004 (earlier called "runtime-filled"; see
+  `ore-and-mining.md`); 0x16644 is not re-checked.
 - Whether the gate-table ceiling (per scenario) or the 100-node pool binds
   first in practice is a runtime question; the pool is the hard cap.
 - The per-type keep-population loop (0xf884, `docs/mechanics/

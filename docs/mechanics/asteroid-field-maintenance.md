@@ -1,7 +1,7 @@
 # Asteroid field maintenance: population keeper and "budding" respawn
 
 Status: confirmed by static disassembly of the GOG flat
-(`build/flat/FRAGILE.EXE.flat`) and cross-checked against savegame dumps
+(`build/flat/FRAGILE.EXE.gog.flat`) and cross-checked against savegame dumps
 (asteroid name/position diffs between consecutive saves). GOG image base
 0x85760; addresses below are image-relative.
 
@@ -85,9 +85,12 @@ Speed and direction are rolled once, at placement, and never change:
 [obj+0x42] = table[0x9da0 + rng_next(12)] - 5 + rng_next(10) ; direction
 ```
 
-Both tables hold code-like bytes in the flat (see the anomaly note in
-`docs/mechanics/asteroid-spawning.md`); the exact runtime values are
-unconfirmed statically.
+Corrected 2026-10-18: both are static tables (flat = displacement +
+0x86004) and their values are known -- speed table 0x9d78: 0,0,1,1,1,1,2,2,2,2,2,3,4,4,3,3;
+direction base table 0x9da0 (12 entries): 6,6,7,7,8,10,12,15,25,35,45,59
+(`asteroid-spawning.md`, "Static table values"). The earlier "code-like
+bytes" remark came from reading the displacement as a flat offset.
+Note: the table maxes at 4 while saves show speeds up to 5, so the speed-5 asteroids come from another path (not traced) **?**.
 
 ## Movement ("are they all moving?")
 

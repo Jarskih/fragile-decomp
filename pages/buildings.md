@@ -4,198 +4,364 @@ title: Buildings
 
 # Buildings
 
-*Status: every building's description is taken from the game's own text resource
-(`_TEXT/AMERICAN.TXT`, the same resource the game displays). The effects below
-are therefore the game's own words. The per-building Money cost, build time,
-power use and numeric stats have **not** been read out of the game yet — they
-are only known where the text gives a number (the megawatt figures, ore
-capacities). A runtime memory trace of the GOG retail build is the route to the
-rest; see [Open questions](#open-questions).*
+*Status: cost, hit points, build time, footprint, power draw, power output,
+capacities and staffing are read from the game's code and data tables
+(**[code]**, GOG retail build; the Terran rows are reported identical in the
+reference build). The descriptions in the "role" columns are the game's own
+text (**[text]**), condensed. Where code and text disagree, the code value is
+used and the conflict is stated. Items still open are marked **(?)**.*
 
 The structures a colony is built from fall into three groups:
 
-- **Always-available buildings** — you can build these on any colony without
-  buying anything first. They are the bulk of the catalogue.
-- **Brochure buildings** — these must be unlocked by ordering their blueprint
-  from the Sci-Tek brochure (Money budget); until then they cannot be built.
-  The brochure also sells permanent upgrades that improve whole families of
-  buildings at once.
-- **Alien equivalents** — every alien civilisation fields its own buildings that
-  match the Terran ones. They are listed at the end.
+- **Always-available buildings** — 27 types you can build on any colony without
+  buying anything first.
+- **Brochure buildings** — 11 types (plus one variant) unlocked by ordering the
+  blueprint from the Sci-Tek brochure (Money). Their blueprint prices are in the
+  tables below. The brochure also sells permanent upgrades (see
+  [Upgrades](#brochure-upgrades-that-change-building-numbers)).
+- **Alien equivalents** — every alien culture fields its own buildings that
+  match the Terran ones; their numbers are listed at the end.
 
 A colony is laid out on the [asteroid surface grid](asteroid-spawning.md); each
-building occupies cells on that grid and is built through the colony interface.
-Most buildings need [power](#power-generation-and-storage) to function — a
-building with no power simply does not work. Some buildings must exist before
-others can be built (a Weapons Factory is required before any turret works; a
-Weapons Factory is itself built only after a Landing Pad and the colony's first
-CPU). Construction time is measured in days, and a build can stall
-if the Money budget, the ores, or the workforce run out. Damaged buildings can
-be repaired by the Repair Facility.
+building occupies a square of cells. The CPU is placed by the Transporter when a
+colony is founded and cannot be built by hand. Construction takes the building's
+**build days** (counted down once per game day, see [Game time](game-time.md));
+the building works when the count reaches zero. The cost is taken in full from the
+**Construction** fund at placement and is not refunded on demolition. Most
+buildings draw power; a building that loses power stops working (see
+[Colony economy](colony-economy.md) for the brownout order). A Weapons Factory is
+required for turrets to work and, with Ship Yards, to build ships. Damaged
+buildings are repaired by the Repair Facility. A race that owns the
+**Building Armour** blueprint gets **+10 hit points** on every new building.
 
-The tables below are grouped by role. The description column condenses the
-game's own text to the mechanically relevant parts.
+## How to read the tables
+
+- **Cost** in Cr; **HP** = hit points (the game calls it armour); **days** =
+  build time; **size** = footprint in cells; **MW** = power drawn by one
+  building (0 for generators, whose output is shown separately).
+- **Morale** is a one-off value applied to the colony when the building is
+  placed and reversed when it is removed. A positive value *reduces* the colony's
+  unrest accumulator. Its exact reading is unresolved **(?)**; the daily unrest
+  effects that are confirmed are on [Colony economy](colony-economy.md).
+- **Blueprint** = Sci-Tek blueprint price in Cr, or "start" if available from the
+  beginning.
 
 ## Colony essentials
 
-The first things a colony needs.
-
-| building | source | cost | role |
-|---|---|---|---|
-| **CPU** (Colony Preservation Unit) | built automatically by the Transporter when founding a colony | — | Establishes a minimum survival colony. Produces air, food and water, but all three degrade by **1 unit per day** until they reach zero — the CPU is meant to be phased out once real buildings are up. Cannot be built manually. |
-| **Landing Pad** | always available | — | The access point to the underground hangars. Idle ships should be kept in the hangars — they are safe there and are repaired if a Repair Facility exists. |
-| **Command Center** | always available (large) | — | Houses the strategic computers that relay and collate sensor data; the only way to contact larger ships in transit between asteroids. **You cannot command any fleet without at least one Command Center.** One Command Center can oversee any number of colonies, so its location is unimportant. |
-| **Weapons Factory** | always available (large) | — | Colony essential. Provides the engines for **all** spacecraft and enables the manufacture of every hardpoint weapon and missile warhead. **Turrets do not function without a Weapons Factory** to maintain and supply them. One suffices for a whole colony. |
-| **Sensor Array** | always available | — | Extends the colony's sensor range (the CPU's built-in sensors are limited). Earlier and more accurate information on approaching asteroids and hostile fleets. |
+| building | cost | HP | days | size | MW | morale | blueprint | role [text] |
+|---|--:|--:|--:|---|--:|--:|---|---|
+| **CPU** (Colony Preservation Unit) | 8,000 | 36 | 40 | 4x4 | 0 (makes 8) | 50 | placed by the Transporter | The minimum survival colony: houses 100, stores 50 MW, gives free air 300 / food 250 / water 250 that each fall by 1 per day, starts with 50 people. Only on an uninhabited asteroid. |
+| **Landing Pad** | 300 | 5 | 16 | 2x2 | 0 | 0 | start | Access to the underground hangars; idle ships are safe and repaired there. |
+| **Command Center** | 8,000 | 36 | 32 | 3x3 | 3 | 5 | start | Needed to command any fleet. One serves any number of colonies; also builds the Space Dock. Needs 8 staff. |
+| **Weapons Factory** | 4,400 | 24 | 32 | 4x4 | 2 | 0 | start | Engines for all craft, manufacture of hardpoint weapons and warheads; turrets do not function without one. |
+| **Sensor Array** | 3,500 | 15 | 36 | 1x1 | 2 | 5 | start | Extends sensor range; without one an asteroid has a very small range. (The Improved Sensors upgrade makes it unnecessary.) |
 
 ## Power generation and storage
 
-Every building that consumes power depends on these. The **Power Amplifier**
-brochure blueprint doubles the output of all solar generators.
+Output is a constant in the code (see [Colony economy](colony-economy.md)). The
+**Power Amplifier** doubles the four solar types.
 
-| building | source | cost | role |
-|---|---|---|---|
-| **Solar Panel** | always available | — | The cheapest, quickest array: **2 MW**, constant flow. Compatible with the Power Amplifier. |
-| **Solar Generator** | always available | — | More efficient than the Solar Panel: **8 MW**, space-efficient. Compatible with the Power Amplifier. |
-| **Solar Matrix** | brochure | — | Large solar array: **12 MW**, or **24 MW** with the Power Amplifier. Small footprint, useful on small asteroids. |
-| **Powerplant** | brochure | — | Fusion plant. Burns Asteros: **32 MW** if ample Asteros is available (uses **1 unit of Asteros every 4 days**); without Asteros only **8 MW** from lesser ores. |
-| **Power Store** | always available | — | Each holds **200 MW** of unused surplus for later use — a backup if generation is lost. Brings up a list of buildings that are without power. |
-| **Refueling Depot** | always available | — | Generates the power to recharge the fuel crystals ships run on. Without it, ships' working life is shortened and Transporters cannot travel far enough to found new colonies. |
+| building | cost | HP | days | size | MW made | MW used | blueprint | role [text] |
+|---|--:|--:|--:|---|--:|--:|---|---|
+| **Solar Panel** | 500 | 5 | 8 | 1x1 | 2 (4 amplified) | 0 | start | Cheapest and quickest. |
+| **Solar Generator** | 1,500 | 10 | 10 | 2x2 | 8 (16) | 0 | start | More efficient than the panel. |
+| **Solar Matrix** | 4,000 | 10 | 32 | 2x2 | 12 (24) | 0 | 50,000 | Large array; small footprint. The long text says 8 MW, but the code gives 12 (the tooltip says 12/24). |
+| **Protected Solar Matrix** | 7,200 | 20 | 32 | 2x2 | 12 (24) | 0 | with the Solar Matrix (?) | A Solar Matrix with a built-in laser turret. The text says 8 MW; the code gives 12. |
+| **Powerplant** | 10,000 | 34 | 40 | 3x3 | 32 while the asteroid holds Asteros ore, else 8 | 0 | 40,000 | Fusion; burns 1 Asteros per plant every 4 days from the asteroid's reserve. |
+| **Power Store** | 1,500 | 34 | 32 | 2x2 | - | 0 | start | Holds 200 MW of surplus (400 with Hi-Energy Power Stores). |
+| **Refueling Depot** | 8,500 | 40 | 30 | 2x2 | - | 0 | start | Recharges ship fuel; without one ship life is shortened and Transporters cannot reach new colonies. |
 
 ## Storage and transport
 
-| building | source | cost | role |
-|---|---|---|---|
-| **Storage Facility** | always available | — | Stockpiles all ores for sale or use. Holds up to **300 units**. Conveyor belts move ore from mines to wherever it is needed. |
-| **Protected Storage Tower** | always available | — | As the Storage Facility but holds up to **600 units** and carries an integral **Laser Turret** (prime target for attack — protect it). |
-| **Ore Teleporter** | brochure | — | Instant ore transfer between asteroids. A Teleporter is needed on **both** ends; one on every asteroid gives best results. |
+| building | cost | HP | days | size | MW | morale | blueprint | role |
+|---|--:|--:|--:|---|--:|--:|---|---|
+| **Storage Facility** | 1,500 | 24 | 20 | 2x2 | 1 | 0 | start | Holds **300** ore units. |
+| **Storage Tower** | 3,000 | 32 | 40 | 2x2 | 2 | 0 | start | Holds **600** ore units. |
+| **Protected Storage Tower** | 7,500 | 32 | 48 | 2x2 | 3 | 0 | start | Holds **600**; has a built-in Laser Turret. |
+| **Ore Teleporter** | 45,000 | 36 | 48 | 2x2 | 1 | 0 | 150,000 | Instant ore transfer; needed on both ends. |
 
 ## Defence
 
-Turrets use a motion-detection sensor that automatically tracks any hostile
-ship as soon as it fires on the colony, then returns fire — assuming the
-colony has [power](#power-generation-and-storage). They are maintained by the
-Weapons Factory.
+There is **no per-turret table for damage, range or rate of fire** in the game's
+data. What the data holds for each defence building is its row below. The text
+claims that damage rises Laser, Plasma, Photon, that the Photon Turret has a
+longer ("optimised") range, and that the Turret Optimizer blueprint (240,000 Cr)
+doubles the damage of every turret; none of these has a number in the code
+**[text only]**. Turrets begin to track a hostile ship as soon as it fires on the
+colony, fire back if powered, and need a Weapons Factory.
 
-| building | source | cost | role |
-|---|---|---|---|
-| **Anti-Missile Pod** | brochure | — | Automated defence that tracks and shoots down incoming warheads. Compact but individually inaccurate — **several per asteroid** are advised. |
-| **Screen Generator** | brochure | — | Projects a protective force field over **neighbouring** buildings, absorbing most energy from most weapons including inter-asteroid missiles. Several advised to cover important buildings. |
-| **Laser Turret** | always available | — | General-purpose auto-tracking defence turret. |
-| **Plasma Turret** | brochure | — | Greater fire-power than the Laser Turret, efficient on power. |
-| **Photon Turret** | brochure | — | The best energy weapon. Fires photon packets "capable of devastating armor"; accuracy beyond compare. |
-| **Missile Silo** | always available | — | Constructs and launches all missile types; also constructs and launches **spy satellites**. Each silo stores **10 of each missile type** (110 total). More silos raise the launch rate. |
+| building | cost | HP | days | size | MW | morale | blueprint | role [text] |
+|---|--:|--:|--:|---|--:|--:|---|---|
+| **Laser Turret** | 3,400 | 16 | 25 | 2x2 | 2 | 5 | start | General-purpose auto-tracking turret. |
+| **Plasma Turret** | 5,500 | 20 | 30 | 2x2 | 3 | 8 | 40,000 | More firepower than the laser; efficient on power. |
+| **Photon Turret** | 7,500 | 20 | 52 | 2x2 | 4 | 8 | 100,000 | The best energy weapon. |
+| **Anti-Missile Pod** | 15,000 | 16 | 36 | 2x2 | 3 | 10 | 250,000 | Tracks and shoots down incoming warheads; individually inaccurate, so several per asteroid. Its actual effect on missiles is not found in the code **(?)**. |
+| **Screen Generator** | 20,000 | 36 | 52 | 2x2 | 7 | 20 | 125,000 | Force field over neighbouring buildings; cuts damage to buildings under it (halved, rounded up, in the missile code). |
+| **Missile Silo** | 4,300 | 15 | 32 | 2x2 | 0 | 0 | start | Builds and launches all missiles; stores 10 of each type [text] (doubled by the Missile Bay Extension). Needs 8 staff. |
+| **Satellite Silo** | 5,000 | 10 | 24 | 2x2 | 1 | 0 | start | Builds and launches spy satellites. |
 
 ## Mining
 
-The three mines between them cover all [ten ores](ore-and-mining.md). The
-**Seismic Penetrator** brochure blueprint unlocks the only mine that reaches the
-two rarest ores.
+Each mine needs **8 staff**. The three mines between them cover all
+[ten ores](ore-and-mining.md).
 
-| building | source | cost | role |
-|---|---|---|---|
-| **Mine** | always available | — | Extracts the four common ores (Selenium, Asteros, Barium, Crystalite). |
-| **Deep Bore Mine** | brochure | — | Extracts the four valuable ores (Quazinc, Bytanium, Korellium, Dragonium). |
-| **Seismic Penetrator** | brochure | — | Extracts the two rarest ores (Traxium, Nexos). |
-
-(The **Mk2 Mine** and **Mk2 Deep Bore Mine** brochure blueprints double the
-extraction rate of all existing and future Mines / Deep Bore Mines.)
+| building | cost | HP | days | size | MW | blueprint | ores |
+|---|--:|--:|--:|---|--:|---|---|
+| **Mine** | 4,000 | 20 | 32 | 2x2 | 1 | start | Selenium, Asteros, Barium, Crystalite |
+| **Deep Bore Mine** | 5,500 | 20 | 36 | 2x2 | 2 | start | Quazinc, Bytanium, Korellium, Dragonium |
+| **Seismic Penetrator** | 26,500 | 24 | 42 | 3x3 | 3 | 120,000 | Traxium, Nexos |
 
 ## Construction and repair
 
-| building | source | cost | role |
-|---|---|---|---|
-| **Ship Yards** | always available | — | Builds the small craft: Assault Fighter, Combat Eagle, Scoutship. Small craft landed in the hangars are repaired if a Repair Facility exists. (See [Vehicles](vehicles.md).) |
-| **Orbital Space Dock** | built through the Command Center | — | Builds the larger craft (Transporter, Destructor, and any blueprinted warships). One per asteroid. (See [Vehicles](vehicles.md).) |
-| **Repair Facility** | brochure | — | Constructs and directs maintenance robots that repair colony buildings. Also repairs small craft in the hangars, and large craft left to patrol from the Orbital Space Dock. |
+| building | cost | HP | days | size | MW | morale | blueprint | role |
+|---|--:|--:|--:|---|--:|--:|---|---|
+| **Ship Yard** | 7,500 | 20 | 32 | 3x3 | 2 | 0 | start | Builds Assault Fighter, Combat Eagle, Scoutship (see [Vehicles](vehicles.md)). Needs 8 staff. |
+| **Repair Facility** | 30,000 | 20 | 36 | 2x2 | 1 | 20 | 150,000 | Repair robots for buildings and hangared craft. |
+| **Asteroid Engine** | 45,000 | 28 | 64 | 3x3 | 5 (engine setting) | 10 | 190,000 | Lets you steer the asteroid; stops without power. |
+| **Gravity Nullifier** | 35,000 | 24 | 52 | 2x2 | 4 while on | 10 | 70,000 | Holds neighbouring asteroids still; must be off while engines run. |
 
-(The **Construction Droids** brochure blueprint lets a Ship Yards or Space
-Dock build **six** craft at once instead of three and speeds construction by
-about **25%**.)
+The **Orbital Space Dock** is a craft, not a building: it is ordered through the
+Command Center (see [Vehicles](vehicles.md)).
 
 ## Life support and workforce
 
-The CPU degrades; these replace and expand its provisions. The
-[Asteroids](asteroids.md) and [Ore and mining](ore-and-mining.md) pages explain
-the economy they feed.
+| building | cost | HP | days | size | MW | morale | blueprint | what it does |
+|---|--:|--:|--:|---|--:|--:|---|---|
+| **Living Quarters** | 1,000 | 5 | 32 | 2x2 | 0 | 10 | start | Houses 50. |
+| **Resiblock** | 3,000 | 10 | 48 | 2x2 | 0 | 20 | start | Houses 150. |
+| **Air Processor** | 13,000 | 24 | 48 | 2x2 | 2 | 30 | start | Air for 400 employees. |
+| **Hydroponics Plant** | 7,000 | 24 | 16 | 3x3 | 2 | 30 | start | Food for 300. |
+| **Water (Hydration) Plant** | 5,000 | 20 | 20 | 2x2 | 1 | 30 | start | Water for 400. |
+| **Environment Control** | 3,200 | 34 | 20 | 2x2 | 0 | 40 | start | Stores surplus: code **air 3,000 / food 1,000 / water 1,000** (text says 5,000 / 600 / 600). |
+| **Radiation Filter** | 8,000 | 24 | 30 | 2x2 | 3 | 10 | start | Radiation level -3 each. |
+| **Medical Center** | 5,000 | 15 | 30 | 3x3 | 1 | 30 | start | Radiation level -3 each; the text says care for 100 employees (not in the code). |
+| **Pleasure Dome** | 5,000 | 10 | 32 | 3x3 | 1 | 40 | start | Unrest -2 per day each (text: 300 personnel). |
+| **Security Center** | 4,500 | 15 | 24 | 2x2 | 2 | -20 | start | Crime -1 per day each (text: 150 employees). |
 
-| building | source | cost | role |
-|---|---|---|---|
-| **Living Quarters** | always available | — | Basic housing. Quick to build but fragile and does little for morale; the Company recommends upgrading as soon as feasible to limit disorder and keep workers motivated. |
-| **Radiation Filter** | brochure | — | Screens out the heavier radioactive particles; protects employees inside colony buildings from the sickness and lost production that high background radiation causes. |
-| **Hydroponics** | always available | — | Grows food from high-protein algae; feeds up to **300** workers. |
-| **Water Plant** | always available | — | Extracts water and oxygen from deep asteroid ice; provides for up to **400** workers. |
-| **Medical Center** | brochure | — | Full hospital: routine and emergency care for up to **100** employees; handles rapid virus outbreaks and low-dose radiation. |
-| **Environmental Control** | always available | — | Stores surplus air, food and water (up to **5 000** air, **600** food, **600** water) and monitors production to keep every section supplied. |
-| **Pleasure Dome** | brochure | — | Entertainment (interactive, bars, sports) for up to **300** personnel at once — raises morale and reduces anti-social behaviour. |
-| **Security Center** | brochure | — | Highly trained teams that step in when management and the workforce clash. Strongly advised to limit civil disorder and keep workers motivated. |
+Population, supply, brownout and unrest formulas: [Colony economy](colony-economy.md).
+
+## Staffing
+
+**Mine, Deep Bore Mine, Seismic Penetrator, Ship Yard, Missile Silo and Command
+Center each need 8 people**, filled from the colony population in that order. An
+understaffed group does not work. **[code]**
+
+## Brochure upgrades that change building numbers
+
+| blueprint | price | effect |
+|---|--:|---|
+| Power Amplifier | 100,000 | solar types give double |
+| Hi-Energy Power Stores | 30,000 | Power Store holds 400 |
+| Building Armour | 110,000 | +10 HP on new buildings |
+| Mk2 Mine / Mk2 Deep Bore Mine | 75,000 / 95,000 | extraction rate doubled |
+| Construction Droids | 80,000 | 6 craft at once instead of 3; about 25% faster |
+| Missile Bay Extension | 60,000 | silo storage doubled |
+| Improved Sensors | 44,000 | sensors in all colonies; Sensor Arrays unnecessary |
+
+Others (turret doubling, Asteroid Tracker, Missile Guidance) are on the
+[Missiles](missiles.md) and [Ship-to-ship combat](ship-combat.md) pages.
+
+## Power priority
+
+When power is short, the lowest-priority buildings go dark first. Order from
+safest to first cut is given on [Colony economy](colony-economy.md).
 
 ## Alien civilisations
 
-Every alien race fields its own buildings that correspond to the Terran set.
-The game names them all; the broad correspondences (the details differ per
-race) are:
+Alien buildings are in the same table in the game's data. Their HP and build
+days are plain values; **their cost field is only a function code (0 to 8), not a
+price** — aliens build with production points (see
+[Aliens and diplomacy](aliens-and-diplomacy.md)). The power column uses the
+opposite sign for generators (positive = makes power, negative = uses it) **(sign
+convention inferred)**. "Terran role" is the building's Terran counterpart; race
+specific buildings have no counterpart. Every one of the 137 roles matched the
+building's name and description.
 
-- **Rigellian** — Central Unit (CPU), Strategic Bunker (Command Center +
-  information-gathering), Construction Unit (Ship Yards), Ground Deck
-  (Landing Pad), Probe Launch (Missile Silo / satellites), Deep Space Probes
-  (sensors), Gravitic Converter (Asteroid Engines + Gravity Nullifier),
-  Energy Gatherer (Powerplant), Energy Globe (Power Store), Shield Generator
-  (Screen Generator), Arms Unit (Weapons Factory), Missile Launchers (Missile
-  Silo), a single **Extractor** for all mining, Storage Racks, Ex-Fang and
-  Ultrathermal Lance (turrets), Anti-Battery (Anti-Missile Pod), Thermal Lance
-  (basic turret).
-- **Braccatian** — First Step (CPU), Clan Heart (Command Center + Council of
-  Elders), TechMech (Ship Yards), Launch Site (Landing Pad), Eyes-in-the-Sky
-  (satellite silo), Eyes-and-Ears (sensors), Anchor (Gravity Nullifier),
-  Heart-of-the-Sun (fusion power), Aegis (Screen Generator), Forge (Weapons
-  Factory), Battery (Missile Silo), Fire Power (≈ Plasma Turret, the most
-  accurate), a single **Subterranean Extractor** for all mining, Pithoi
-  (storage towers), Anti-Battery (Anti-Missile Pod).
-- **Mikotaj** — Base Crystal (CPU), Structures Matrix (Ship Yards), Volition
-  (Landing Pad), Visibility (satellite silo), Perception (sensors, the most
-  sensitive in the Federation), Capacitors (store the mental energy that powers
-  the colony), Sharir (Weapons Factory), Shrekn (Missile Silo), Merl (≈ Plasma
-  Turret), Na-Shrekn (≈ Photon Turret), Lanth (cloaking device), a single
-  **Ruth-feror** for all mining, Ruth-fett (storage).
-- **Artemian** — Community (CPU), Healing Unit (Command Center), Resonance
-  (power generation), Construction Yard (Ship Yards), Launch Pad, Perception
-  (sensors), individual **Extractors** (mining), individual **Storage Towers**,
-  Star Bars (basic turret), Auto-deterrent (shortest range), Super-deterrent (≈
-  Photon Turret).
-- **Maunid** — Temple (Command Center), Elite Block (Command Center + Sensor
-  Array), individual **Extraction Units** (mining), Dome (Security Center),
-  individual **Storage Buildings**, Stun Tower (basic defence), Power Tower (≈
-  Photon Turret, "more deadly").
-- **Achaean** — Communications Central (Command Center), Data Gatherer and
-  Listening Device (sensors), individual **Commonbore / Deepbore** mines,
-  Dockyard (Command Center + Construction Yard), individual **Storage
-  Buildings**, Asteroid Shield / Defence Battery.
 
-(The Terran building descriptions above are ground truth; the alien
-correspondences are summarised from the same text resource.)
+### Rigellian buildings
+
+| building | Terran role | HP | build days | footprint | power (+makes / -uses) |
+|---|---|---|---|---|---|
+| Central Unit | C.P.U. | 30 | 36 | 3x3 | 8 |
+| Filtration Plant | Hydration Plant | 20 | 20 | 2x2 | -1 |
+| Nourishment Bank | Hydroponics Plant | 10 | 20 | 2x2 | -1 |
+| Community | Living Quarters | 20 | 48 | 2x2 | 0 |
+| Health Unit | Medical Centre | 30 | 36 | 2x2 | -1 |
+| Strategic Bunker | Command Centre | 45 | 34 | 3x3 | -3 |
+| Science Labs | race-specific | 50 | 58 | 3x3 | -1 |
+| Databanks | race-specific | 50 | 44 | 2x2 | -1 |
+| Construction Unit | Ship Yard | 30 | 30 | 4x4 | -2 |
+| Ground Deck | Landing Pad | 20 | 18 | 3x3 | 0 |
+| Probe Launch | Satellite Silo | 30 | 24 | 2x2 | -1 |
+| Deep Space Probes | Sensor Array | 30 | 36 | 2x2 | -1 |
+| Gravitic Converter | Asteroid Engine | 10 | 46 | 2x2 | -4 |
+| Energy Gatherer | Solar Matrix | 30 | 46 | 2x2 | 32 |
+| Energy Globe | Power Store | 30 | 52 | 2x2 | 0 |
+| Shield Generator | Screen Generator | 45 | 46 | 2x2 | -6 |
+| Arms Unit | Weapons Factory | 40 | 30 | 3x3 | -3 |
+| Missile Launcher | Missile Silo | 25 | 30 | 3x3 | 0 |
+| Thermal Lance | Plasma Turret | 25 | 28 | 3x3 | -3 |
+| Extractor | Mine | 35 | 42 | 2x2 | -2 |
+| Storage racks | Storage Tower | 40 | 48 | 3x3 | -2 |
+| Ex-Fang | race-specific | 45 | 48 | 4x4 | -4 |
+| Ultrathermal Lance | Photon Turret | 45 | 57 | 3x3 | -3 |
+
+### Braccatian buildings
+
+| building | Terran role | HP | build days | footprint | power (+makes / -uses) |
+|---|---|---|---|---|---|
+| First Step | C.P.U. | 45 | 45 | 3x3 | 10 |
+| Clan Heart | Command Centre | 55 | 73 | 3x3 | -2 |
+| Radiation Shield | Radiation Filter | 16 | 30 | 3x3 | -1 |
+| Source | Hydroponics Plant | 45 | 40 | 2x2 | -2 |
+| Aesir's Hall | Air Processor | 30 | 50 | 2x2 | -1 |
+| Longhouse | Living Quarters | 25 | 35 | 3x3 | 0 |
+| Sports Hall | race-specific | 25 | 58 | 3x3 | 0 |
+| Field Hospital | Medical Centre | 15 | 26 | 3x3 | -1 |
+| Glasshouse | Security Centre | 15 | 22 | 2x2 | -2 |
+| TechMech | Ship Yard | 40 | 45 | 3x3 | -3 |
+| Launch Site | Landing Pad | 20 | 12 | 3x3 | 0 |
+| Eyes-in-the-Sky | Satellite Silo | 25 | 24 | 2x2 | 0 |
+| Eyes-and-Ears | Sensor Array | 25 | 35 | 2x2 | -1 |
+| Anchor | Asteroid Engine | 30 | 65 | 2x2 | -5 |
+| Heart-of-the-Sun | Solar Matrix | 35 | 50 | 2x2 | 40 |
+| Aegis | Screen Generator | 35 | 50 | 2x2 | -5 |
+| Forge | Weapons Factory | 60 | 57 | 3x3 | -3 |
+| Anti-Battery | Anti-Missile Pod | 35 | 30 | 2x2 | -2 |
+| Battery | Missile Silo | 35 | 30 | 3x3 | 0 |
+| Turret | Photon Turret | 30 | 42 | 2x2 | -3 |
+| Subterranean Extractor | Mine | 30 | 48 | 2x2 | -2 |
+| Pithoi | Storage Tower | 30 | 56 | 2x2 | -1 |
+| Fire Power | Plasma Turret | 30 | 32 | 2x2 | -4 |
+
+### Mikotaj buildings
+
+| building | Terran role | HP | build days | footprint | power (+makes / -uses) |
+|---|---|---|---|---|---|
+| Base Crystal | C.P.U. | 50 | 50 | 3x3 | 10 |
+| Stability | Command Centre | 40 | 78 | 3x3 | -1 |
+| Purity | Radiation Filter | 35 | 52 | 2x2 | -1 |
+| Fulfilment | Hydroponics Plant | 30 | 50 | 2x2 | -1 |
+| Internal | Living Quarters | 12 | 56 | 3x3 | -1 |
+| Dream | race-specific | 40 | 38 | 3x3 | 0 |
+| Resonance | race-specific | 50 | 66 | 3x3 | -5 |
+| Fa-lanth | Screen Generator | 45 | 50 | 2x2 | -6 |
+| Mask | race-specific | 30 | 80 | 2x2 | -2 |
+| Structures Matrix | Ship Yard | 25 | 35 | 3x3 | -2 |
+| Volition | Landing Pad | 10 | 18 | 2x2 | 0 |
+| Visibility | Satellite Silo | 20 | 24 | 2x2 | -1 |
+| Perception | Sensor Array | 20 | 36 | 2x2 | -2 |
+| Capacitors | Solar Matrix | 35 | 40 | 2x2 | 38 |
+| Lanth | race-specific | 50 | 55 | 2x2 | -3 |
+| Sharir | Weapons Factory | 20 | 34 | 3x3 | -3 |
+| Shrekn | Missile Silo | 10 | 32 | 2x2 | 0 |
+| Ruth-feror | Mine | 15 | 48 | 3x3 | -2 |
+| Ruth-fett | Storage Tower | 10 | 40 | 2x2 | -2 |
+| Merl | Plasma Turret | 15 | 35 | 2x2 | -3 |
+| Na-Shrekn | Photon Turret | 20 | 57 | 2x2 | -3 |
+| SoftCore | C.P.U. | 25 | 40 | 4x4 | 12 |
+
+### Artemian buildings
+
+| building | Terran role | HP | build days | footprint | power (+makes / -uses) |
+|---|---|---|---|---|---|
+| Environmental Stabiliser | Environment Control | 50 | 26 | 3x3 | -1 |
+| Filtration Tanks | Hydroponics Plant | 50 | 30 | 3x3 | -2 |
+| Canisters | Living Quarters | 20 | 46 | 2x2 | 0 |
+| Nurseries | race-specific | 60 | 30 | 2x2 | 0 |
+| Healing Quarters | Medical Centre | 15 | 26 | 2x2 | -1 |
+| House of the Axe | race-specific | 35 | 48 | 3x3 | -1 |
+| Naval Dockyard | Ship Yard | 45 | 56 | 3x3 | -3 |
+| Launch Pads | Landing Pad | 20 | 18 | 2x2 | -1 |
+| Deep Probes | Sensor Array | 25 | 34 | 2x2 | -1 |
+| Gravitic Converter | Asteroid Engine | 20 | 50 | 3x3 | -6 |
+| Shielded Solars | Solar Matrix | 35 | 46 | 2x2 | 26 |
+| Shell | race-specific | 40 | 44 | 2x2 | -3 |
+| Arms Forge | Weapons Factory | 50 | 36 | 3x3 | -4 |
+| Star Bars | Anti-Missile Pod | 23 | 34 | 2x2 | -2 |
+| Missile Launcher | Missile Silo | 35 | 30 | 2x2 | 0 |
+| Auto-deterrent | Plasma Turret | 40 | 28 | 2x2 | -2 |
+| Super-deterrent | Photon Turret | 40 | 48 | 3x3 | -1 |
+| Force Fields | Screen Generator | 30 | 30 | 2x2 | -4 |
+| Advanced Ore Extractor | Deep Bore Mine | 30 | 34 | 3x3 | -1 |
+| Rare Ore Extractor | Seismic Penetrator | 35 | 40 | 3x3 | -2 |
+| Ore Depot | Storage Tower | 25 | 24 | 2x2 | -1 |
+| Refining Forge | race-specific | 35 | 38 | 3x3 | -1 |
+
+### Maunid (Mauna) buildings
+
+| building | Terran role | HP | build days | footprint | power (+makes / -uses) |
+|---|---|---|---|---|---|
+| Base Block | C.P.U. | 50 | 35 | 3x3 | 22 |
+| Shielding Block | Radiation Filter | 20 | 30 | 3x3 | -1 |
+| Nutrition Block | Hydroponics Plant | 20 | 26 | 3x3 | -1 |
+| Off-duty Block | Living Quarters | 20 | 24 | 2x2 | 0 |
+| Health Block | Medical Centre | 10 | 16 | 2x2 | 0 |
+| The Cube | race-specific | 30 | 30 | 3x3 | 0 |
+| Elite Block | Sensor Array | 60 | 56 | 3x3 | -4 |
+| Construction Area | Ship Yard | 50 | 32 | 4x4 | -3 |
+| Launch Area | Landing Pad | 40 | 18 | 2x2 | 0 |
+| Satellite Pad | Satellite Silo | 45 | 24 | 3x3 | -1 |
+| Fast Breeder Reactor | Solar Matrix | 35 | 52 | 2x2 | 50 |
+| Arms Block | Weapons Factory | 50 | 36 | 4x4 | -5 |
+| Defence Pods | Anti-Missile Pod | 40 | 34 | 2x2 | -3 |
+| Attack Pods | Missile Silo | 40 | 34 | 2x2 | -1 |
+| Pulse Tower | Plasma Turret | 40 | 32 | 2x2 | -4 |
+| Screening Pods | Screen Generator | 30 | 34 | 2x2 | -8 |
+| Advanced Extraction Unit | Deep Bore Mine | 30 | 38 | 3x3 | -2 |
+| Superior Extraction Unit | Seismic Penetrator | 40 | 44 | 3x3 | -3 |
+| Ores Block | Storage Tower | 50 | 32 | 2x2 | -2 |
+| Motion Units | Asteroid Engine | 60 | 66 | 2x2 | -5 |
+| Laser Boost | Photon Turret | 45 | 28 | 2x2 | -4 |
+
+### Achaean buildings
+
+| building | Terran role | HP | build days | footprint | power (+makes / -uses) |
+|---|---|---|---|---|---|
+| Footprint | C.P.U. | 38 | 50 | 3x3 | 2 |
+| Anti-Rad Screen | Radiation Filter | 15 | 32 | 2x2 | -1 |
+| Environmental Control | Environment Control | 15 | 36 | 2x2 | -1 |
+| Filtration Vats | Hydration Plant | 30 | 38 | 2x2 | -1 |
+| Nutrient Vats | Hydroponics Plant | 30 | 40 | 2x2 | -1 |
+| Habitat | Living Quarters | 25 | 56 | 2x2 | 0 |
+| Pharmacopeion | Medical Centre | 15 | 30 | 3x3 | -1 |
+| Gathering Ground | race-specific | 45 | 68 | 3x3 | 0 |
+| Market | race-specific | 45 | 76 | 3x3 | 0 |
+| Communications Central | Command Centre | 50 | 36 | 3x3 | -2 |
+| Shipyard | Ship Yard | 30 | 45 | 3x3 | -4 |
+| Landing Pad | Landing Pad | 10 | 18 | 2x2 | 0 |
+| Missile Launcher | Missile Silo | 40 | 34 | 2x2 | 0 |
+| Data Gatherer | Satellite Silo | 15 | 28 | 3x3 | -1 |
+| Listening Device | Sensor Array | 20 | 40 | 2x2 | -2 |
+| Manoeuvring Device | Asteroid Engine | 35 | 68 | 2x2 | -6 |
+| Destination Beam | race-specific | 50 | 100 | 2x2 | -3 |
+| Reactor Cores | Solar Matrix | 25 | 40 | 2x2 | 66 |
+| Asteroid Shield | Screen Generator | 26 | 46 | 2x2 | -6 |
+| Defence Battery | Anti-Missile Pod | 30 | 36 | 2x2 | -2 |
+| Commonbore | Mine | 16 | 44 | 3x3 | -1 |
+| Deepbore | Seismic Penetrator | 25 | 42 | 3x3 | -3 |
+| Ore Yard | Storage Tower | 35 | 44 | 2x2 | -1 |
+| Goods Yard | race-specific | 45 | 40 | 2x2 | 0 |
+| Stun Tower | Laser Turret | 18 | 26 | 2x2 | -2 |
+| Power Tower | Photon Turret | 20 | 50 | 2x2 | -3 |
+
+Descriptive names for the race-specific extras (text): the Rigellian Science Labs,
+Databanks and Ex-Fang; Braccatian Sports Hall; Mikotaj Dream, Resonance, Mask and
+Lanth (a cloaking device); Artemian Nurseries, House of the Axe, Shell and
+Refining Forge; Maunid The Cube; Achaean Gathering Ground, Market, Destination
+Beam and Goods Yard. The Braccatian "Fire Power" (Plasma-class) is described as
+possibly the most accurate turret weapon in the game; the Maunid "Power Tower" as
+more deadly than the Photon Turret.
 
 ## Open questions
 
-- The **Money cost, build time, power draw and numeric stats** (footprint,
-  armour, turret damage / range) for each building are not yet extracted. They
-  live in the game's per-type tables, which are written to memory only while the
-  colony **building-placement** view is active. None of the currently captured
-  runtime dumps were taken at that view (they are main-menu and Ship-Yards dumps),
-  so the values are not present in any dump on hand. Capturing a fresh dump while
-  the building-placement screen is open (the snapshot tooling already exists) is
-  the route to read them. A separate static table of 16 stat records with costs
-  exists, but its ids do not index the known building types, so it is a different
-  table family and not the building stats.
-- Whether morale / civil order is a numeric mechanic or purely flavour is not
-  settled; the Security Center and Living Quarters texts imply one but the
-  mechanics are not yet confirmed.
-- Exact build prerequisites beyond the Weapons Factory / turret link described
-  above; the per-building requirement lists are believed to live in the
-  terrain-record table that has not yet been recovered.
+- The reading of the one-off morale values and the Living Quarters (+10) and
+  Security Center (-20) signs.
+- The Anti-Missile Pod's interception effect (no code found).
+- Per-turret damage, range and rate of fire (no table; may be a code constant
+  in unrecovered ship-combat code).
+- What the Protected Solar Matrix needs as a blueprint.
 
-*Related: [Vehicles](vehicles.md) — the craft built in the Ship Yards and
-Orbital Space Dock; [Ores and mining](ore-and-mining.md) — the ores the mines
-extract and the economy they feed; [Asteroids](asteroids.md) — the surface
-grid buildings sit on; [Asteroid spawning](asteroid-spawning.md) — how the
-field and its colonies are generated.*
+*Related: [Colony economy](colony-economy.md); [Vehicles](vehicles.md);
+[Ores and mining](ore-and-mining.md); [Asteroids](asteroids.md);
+[Asteroid spawning](asteroid-spawning.md); [Missiles](missiles.md).*

@@ -2,12 +2,14 @@
 
 Status: ore **placement**, **reserves** and **extraction** confirmed by static
 disassembly of the GOG flat plus savegame dumps; per-type ore **amounts**
-read empirically from saves (the per-type tables at 0x9e78/0x9e90/0x9ea8/
-0x9ede/0x9eb0, the ore-param tables 0x16644/0xa455, the reserve-roll tables
-0x9cf8..0x9cfc and the per-unit value table 0x9cf8 hold code-like bytes in
-the flat and are written at runtime — the statically unreadable values were
-read from live saves instead). GOG image base 0x85760; addresses below are
-image-relative.
+were first read empirically from saves. Corrected 2026-10-18: the per-ore
+table at 0x9cec (reserve rolls and the per-unit values at 0x9cf8) is NOT
+"code-like / runtime-written": all these displacements are static data at
+flat = displacement + 0x86004 (see "Static per-ore table" below); the
+smaller per-type tables (0x9e78/0x9e90/0x9ea8/0x9ede/0x9eb0, 0xa455) are
+equally statically readable by the same rule but were not re-read. The
+monthly TRADE ore prices are runtime (0xe808, zero in the file). GOG image
+base 0x85760; addresses below are image-relative.
 
 ## Correction history
 
@@ -73,7 +75,7 @@ and the reserve roll for indices 8/9 is the only one allowed to produce 0
 
 Called on asteroid creation (hook of `asteroid_create`); also feeds
 `asteroid_rank_start_values` (0x2ff04) at the end. For each ore i = 0..9
-(14-byte stride in the per-ore table at 0x9cec, runtime-filled):
+(14-byte stride in the per-ore table at 0x9cec, static; values below):
 
 1. Presence roll: `if rng(100) < word [0x9cec + i*14]` →
    amount roll: `rng(word[0x9cf0 + i*14] - word[0x9cee + i*14] + 1) +
@@ -87,6 +89,30 @@ amount (used by the flux ticks 0x34f4/0x35d4), word +8 = faction base value
 (used by 0x12594's jitter branch), word +10 = (unused), word +12 = per-unit
 value (used by the value converter 0x16b04 and the value score at 0x7d4 —
 address 0x9cf8).
+
+### Static per-ore table (read 2026-10-18, flat 0x9FCF0 + 14*i)
+
+| ore i | presence % | min | max | extraction | faction base | word +10 | unit value (0x9cf8) |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 Selenium | 80 | 500 | 1000 | 200 | 250 | 300 | 1 |
+| 1 | 80 | 250 | 500 | 200 | 300 | 400 | 2 |
+| 2 | 60 | 250 | 500 | 200 | 300 | 400 | 3 |
+| 3 | 80 | 250 | 750 | 100 | 100 | 150 | 4 |
+| 4 | 80 | 50 | 116 | 50 | 50 | 70 | 5 |
+| 5 | 60 | 20 | 116 | 50 | 50 | 60 | 7 |
+| 6 | 50 | 10 | 100 | 20 | 25 | 35 | 10 |
+| 7 | 50 | 10 | 100 | 10 | 28 | 35 | 20 |
+| 8 | 35 | 2 | 15 | 0 | 0 | 0 | 70 |
+| 9 Nexos | 25 | 1 | 8 | 0 | 0 | 0 | 100 |
+
+(Ore names for rows 1..8 follow the ore order of the text resource; see the
+catalogue above. Column roles are as listed in the layout paragraph; the
+"word +10" column is unused by the code read so far.) The per-unit value
+column is the *static* base value used by the value converter and the colony
+value budget; the prices the player sees when selling ore are the monthly
+trade prices (reference price x sine waves x noise, `alien-ai-trade-victory.md`
+section 8.3, copied into the Federation ore price table 0xE808 each month),
+so the "ore unit values" are NOT constants in play.
 
 Note: the six wild specials (types 9..14) show **identical fixed reserves**
 in every save despite different asteroid seeds — they are copied from a fixed
@@ -429,10 +455,12 @@ is otherwise zero in the observed saves.
 
 ## Open questions
 
-- The exact runtime values of the runtime-filled tables (0x9c9c, 0x9cec,
-  0x9e54..0x9eb3, 0xa41e, 0xa452..0xa45b, 0xa476/0xa477, 0xaf34, 0x16644,
-  0x9f48/0x9f60, 0x36277, 0xe808) are not statically readable; the values
-  above are empirical (saves) or structural (disasm).
+- Corrected 2026-10-18: 0x9c9c, 0x9cec and the sibling tables (0x9e54..0x9eb3,
+  0xa41e, 0xa452..0xa45b, 0xa476/0xa477, 0xaf34, 0x9f48/0x9f60, 0x36277) are
+  statically readable at displacement + 0x86004; 0x9c9c and 0x9cec are
+  tabulated above/in `asteroid-spawning.md`, the rest were not re-read. Still
+  runtime: 0xe808 (monthly ore prices), and 0x16644 is half zero in the file
+  (bases 40, 40 at rows 4-5).
 - The copy site that gives the six wild specials their fixed reserves
   [300,400,400,150,70,60,35,35,0,0] is not yet identified (they do not go
   through the rng roll — values identical across different asteroid seeds).

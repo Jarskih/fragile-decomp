@@ -1,10 +1,15 @@
 # Weapons: how ships fire at targets
 
 Status: firing pipeline **confirmed** by static disassembly of the reference
-build (Interplay CD flat, `build/flat/FRAGILE.EXE.flat`); projectile **flight
-and impact details** partially open (the per-tick movement/detonation code sits
-in unrecovered gap code; see Open questions). Source: disassembly +
-`build/named/FRAGILE.EXE.flat/decompiled.c`.
+build (Interplay CD flat, `build/flat/FRAGILE.EXE.flat`); the **impact side**
+(flight, arrival roll, warhead effects and every per-type number) is
+**confirmed for the GOG build** and lives in `ship-hit-formula.md`. **Revised
+2026-10-18:** the "tables in code / runtime-only" statements of this note were
+a base error — static tables read through a DS displacement `D` are at GOG flat
+`D + 0x86004` (ISO flat `D + 0x8E004`); only displacements beyond the file size
+(BSS, e.g. the direction tables) are runtime-filled. Remaining open: the
+per-tick flight code in the ISO gap region and the exact choice of the impact
+cell. Source: disassembly + `build/named/FRAGILE.EXE.flat/decompiled.c`.
 
 Addresses are image-relative in the reference flat (the same layout the
 pipeline currently produces; the GOG-build equivalents of these functions were
@@ -27,10 +32,11 @@ the orbiting ships, or the asteroid itself. Ships additionally carry an
 armour stat ("Armor" in the ship panel) and "Hardpoints"; the fleet panel
 shows "Strike Rate" and "Missiles At N" (how many missiles a ship carries).
 
-Ore costs per type are given by the game text (Selenium: Explosive, Scatter;
-Barium: Area Explosive, Anti-Virus; Crystalite: Vortex; Quazinc: Napalm,
-Hellfire; Bytanium: Nuclear; Korellium: Stasis; Dragonium: Mega; Traxium:
-Virus; Nexos: Mega).
+Ore costs per type are fixed by the missile table (`stat-tables-design-sheet.md`
+section 4): Selenium: Explosive, Scatter; Barium: Area Explosive, Anti-Virus;
+Crystalite: Vortex; Quazinc: Napalm, Hellfire; Bytanium: Nuclear; Korellium:
+Stasis; Traxium: Virus; Nexos: Mega (Dragonium is a craft ore, not a missile
+ore; the earlier "Dragonium: Mega" was wrong).
 
 ## Object pools and the SHOT node
 
@@ -70,9 +76,10 @@ asteroid by `speed * table[dir] / 12` (Y from `0x5c900`, X from `0x5c800`),
 the fleet movement moves by `table[angle] * 3`, and the launch-position
 helper `0x35874` offsets a moving launcher by `table[+0x1e]/table[+0x1f]`.
 
-**The tables are written at runtime, like the asteroid tables** (same anomaly
-as `docs/mechanics/asteroid-spawning.md` documents for 0x9c9c etc.): the flat
-bytes at 0x5c800/0x5c900 are dead code. The fill loop at `0x21414` computes
+**The tables are written at runtime** (BSS: the GOG displacements `0x7eaf0` /
+`0x7ebf0` lie beyond the end of the file image, so they cannot be static; this
+is the one place where "runtime-filled" is right): the flat bytes at
+0x5c800/0x5c900 of the reference build are dead code. The fill loop at `0x21414` computes
 320 entries (`fildll(angle) × k1, fsin, × k2, round`) and stores them at
 `0x5c7fc + i*4`, so the table the code reads at 0x5c800/0x5c900 is a
 phase-shifted window of that 320-entry sine table. The constants `k1`/`k2`
@@ -149,8 +156,8 @@ code; key fragments verified):
 4. `0x51724` — the **spawner** (also called directly by the target-change
    path `0x52d24`): pops a SHOT node, zeroes it, fills position from the
    launch globals and the per-type tables (`0x39811/0x39812` stride 0x10,
-   dword tables at `0x5c800/0x5c900` — all "tables in code", values
-   runtime-only), sets node type `+0x8` (either the constant 0x20 or
+   dword tables at `0x5c800/0x5c900` — the latter are runtime-filled BSS, the
+   former are an asset-descriptor table, see below), sets node type `+0x8` (either the constant 0x20 or
    `sqrt(distance)+1`, `0x5d4a4`), `+0x13` launcher kind, `+0xb` owner,
    `+0xa` flags, `+0x9` subtype, and bumps the per-(race,type) counter at
    `0xd0a4`. The spawner recurses (twin/Scatter-style multi-shot) and, for
@@ -160,9 +167,15 @@ code; key fragments verified):
 `+0x48`. At fire time `0x52c24` (or `0x52ca4` for the second target slot)
 rolls rng up to four times to pick a slot, retrying while the per-type table
 `0xb1bc` (respectively the pointer table `0xb200`) says the picked type is
-invalid; the fallback is type 9. These per-type tables are the missile
-validity/spawn tables (runtime values not statically readable, see Open
-questions).
+invalid; the fallback is type 9. The ISO displacements `0xb1bc` / `0xb200` map (shift 0x6E8) to GOG
+`0xaad4` / `0xab18`, i.e. flat 0x90AD8 / 0x90B1C — inside the hardpoint-item
+rating block (S@0x90AB4 rating A, 0x90AEC rating B, 0x90B1C rating C of
+`stat-tables-design-sheet.md` section 3). So these are most probably
+**hardpoint-item** validity / rating tables and the shooter's `+0x48` array is
+the fitted-items array rather than a missile cargo (**I**; the "missile type"
+wording of this paragraph is doubtful until the ISO bytes are re-read).
+
+> **Corrected 2026-10-18 (overturned):** the table `0xa4ac` (GOG `0x9dc4`, flat 0x8FDC8) is the COLONY EVENT table (APV viruses and Terran colony events; mode byte = cure, byte +9 = stage length in days), not a ship weapon-slot table, so the paragraph below (fire-delay byte, "rearm floor") is withdrawn; see `weapon-and-turret-numbers.md`. The ammo-pool and `0x14384` observations were read from the same colony-event code and are unverified as weapon logic.
 
 **Ship hardpoint weapons (ship-vs-ship / dogfight).** Ships also carry
 hardpoint weapons (the Laser, Photon Cannon, Plasma Cannon, …): the per-type
@@ -193,17 +206,20 @@ The fire resolution `0x14384`:
 The per-subtype handlers at 0x200e4/0x2049c (dispatch via 0xba8a/0xbfe4)/
 0x20564/0x2059e/0x207a4 (the `rng_next(100) < 0xc095[subtype]` strike roll)/
 0x20b51/0x210a7 and the sweep helpers 0x1fd34/0x1fde4 have no static callers
-because they are **dispatched through runtime-filled pointer tables**: the
-task-list walk calls the handler at node `+0xc`, and `combat_shot_spawn`
-(`0x1ffc4`) loads that handler from the runtime pointer `0xbff8` (+4); the
-per-type dispatch reads `0xbfe4[0xba8a[type*16]]`. The earlier "probably
+because they are **dispatched through pointer tables** (static in the GOG
+flat, which is why no static caller exists): the task-list walk calls the
+handler at node `+0xc`, and `combat_shot_spawn` (`0x1ffc4`) loads that handler
+from the pointer `0xbff8` (+4); the per-type dispatch reads
+`0xbfe4[0xba8a[type*16]]` (GOG `0xb918[0xb3be[type*16]]`: the list for the
+missile id). The stored code pointers are flat − 4. The earlier "probably
 stale" conclusion was therefore wrong — the live chain runs
 `0x51664` → `0x52b74` → `combat_shot_spawn` → the 0x200e4-family handlers.
 The GOG retail build proves the same: its twin machine (handlers at
 0x20094..0x20b54, spawned by `obj_spawn_child` 0x1fbc4) is present and live.
-The full hit-resolution analysis — the arc/radius sweep, the per-tick strike
-roll, the direct-hit path and the aim-spread computation — is now in
-`ship-hit-formula.md`. The panel/dialog **percentages** are a different,
+The full hit-resolution analysis — the blast sweeps (these are **missile
+warhead** effects on the attacked asteroid's structures, not ship beam weapons
+or turrets), the per-tick strike roll, the direct-hit path, the aim spread and
+every per-type number — is in `ship-hit-formula.md`. The panel/dialog **percentages** are a different,
 distance-based computation and are confirmed — see the next section.
 
 ## Strike chance: the missile accuracy formula (confirmed)
@@ -259,9 +275,12 @@ answer is 99%; at (191, 0) it is 1%; at (192, 0) it is 0%.
 the colony launch path also stores that value on each selected missile:
 ISO `0x4e900` computes it once, `0x4e962..0x4e970` passes it in ECX to
 `0x210e4`, and `0x210e7` writes CL to missile byte `+0x0a`. That establishes
-a gameplay input, not just UI text. The eventual consumer of that byte and
-its exact hit/miss comparison are not yet traced here; this percentage
-must not be presented as a measured arrival rate or a guaranteed outcome.
+a gameplay input, not just UI text. The consumer is the flight handler
+(GOG `0x1fce4`, traced 2026-10-18): at the first approach tick it rolls
+`rng_next(101)`; a roll at or below the byte gives the missile a 255-tick
+timeout (it arrives), a roll above gives a 10-40-tick timeout (it expires en
+route, see `ship-hit-formula.md`). So the percentage **is** the arrival
+probability, (chance+1)/101 to be exact.
 
 Callers (ISO): the targeting list header `FUN_0003b0e4` (the "100 if own
 asteroid, else formula" path — the missile targeting screen's strike-chance
@@ -277,11 +296,11 @@ shooter's heading, else 0x7fffffff (rejected); otherwise the score is the
 squared distance, or a fresh rng roll when the target is closer than 0x100
 (and `+0x7` unset). The best score wins the slot.
 
-**Arc sweep (confirmed live — see `ship-hit-formula.md`).** The child-list
-sweep `0x1fde4` runs inside the live combat machine (its GOG twin is
+**Cone sweep (confirmed live — see `ship-hit-formula.md`).** The child-list
+sweep `0x1fde4` runs inside the live missile impact machine (its GOG twin is
 `combat_cone_effect` `0x1f9e4`, reachable from the live event chain). A
-launcher (node `+0x8` type, `+0x1e` facing, `+0x1f*param_2` range) walks the
-target's child list; every child whose world position (`+0x14/+0x15` cell
+warhead node (node `+0x8` type, `+0x1e` facing, `+0x1f*param_2` range) walks the
+attacked asteroid's structure list; every child whose world position (`+0x14/+0x15` cell
 offsets + per-type offsets from `0x386d4/0x386d5`) lies within the range²
 and whose angle lies inside the facing arc (`+0x1e` ± 0xa0, byte angles — a
 wide front cone) is marked hit (`+0xb = 5`, or 0xf6 for non-turret types)
@@ -302,28 +321,33 @@ arc test. The generic sweep damage is 5.
 
 ## Open questions
 
-- **Dogfight accuracy — now answered**: see `ship-hit-formula.md`. The
-  hardpoint beam weapons resolve hits by arc/radius sweep with no accuracy
-  roll; the strike roll (`rng_next(100) < per-race byte`) exists only in the
-  rolled sub-shots of the surface combat machine, and the displayed
-  "Strike Rate"/"Strike chance" is the distance formula. What remains open
-  is the **values** of the per-race bytes (runtime-only, no dump has them
-  materialised).
+- **Hit resolution — answered**: see `ship-hit-formula.md`. Missile warheads
+  resolve by circle / cone sweeps over the attacked asteroid's structures with
+  no accuracy roll; the strike roll (`rng_next(100) < per-race byte`) exists
+  only in the Vortex storm walker, and the displayed "Strike Rate" / "Strike
+  chance" is the distance formula that also decides whether a missile arrives
+  (a roll at or below it gives the missile a 255-tick timeout, a roll above it a
+  10-40-tick one). The per-race bytes are **static** and listed there.
+  Whether ship hardpoint weapons and turrets have a resolution model of their
+  own is unanswered (no table; the weapon callbacks sit in gap code
+  `0x13800…0x13d80`).
 - The per-tick **flight movement and detonation** of SHOT nodes: the
   movement uses the shared direction tables and the `+0x16` homing steer is
   confirmed, but the exact updater loop and the impact/crater application
   (the reference equivalent of the GOG `terrain_create_crater`/effect
   functions) sit in unrecovered gap code — next target for a Ghidra function
   pass or a DOSBox-X trace.
-- The runtime values of every "table in code" used here: the direction
-  tables 0x5c800/0x5c900 (fill loop 0x21414, constants at flat 0x192/0x19a),
-  the per-type byte tables 0x386d4 (stride 0x14), 0x39811/0x39812 (stride
-  0x10), 0xba8a (stride 0x10), the missile tables 0xb1bc/0xb200, and the
-  handler table 0xbfe4. Same status as the asteroid tables in
-  `docs/mechanics/asteroid-spawning.md` — unconfirmed until a runtime trace.
-  One table is now **confirmed statically** (the type-picker's per-type
-  table with the sprite-name pointers and the 14 turret sprites
-  `*_PHOTO\trm08..21.256`): see `weapon-config-table.md`. The `type_pick`
+- The "tables in code" used here, resolved on 2026-10-18 (GOG flat = displ. +
+  0x86004): `0x386d4` (stride 0x14) is the building class table (footprints,
+  GOG `0x36274`); `0xba8a` (stride 0x10) is the missile table's id field (GOG
+  `0xb3be`); `0xbfe4` is the static per-missile handler-list table (GOG
+  `0xb918…`); `0xa6bc/0xa6bd` are the building muzzle bytes; `0x39811/0x39812`
+  (stride 0x10) belong to the asset (sprite) descriptor table; `0xb1bc/0xb200`
+  most probably fall in the hardpoint rating block. Still runtime: the direction
+  tables 0x5c800/0x5c900 (fill loop 0x21414, constants at flat 0x192/0x19a;
+  GOG `0x7eaf0/0x7ebf0` are BSS). The type-picker's table with the sprite-name
+  pointers and the 14 turret-sprite names is statically readable and is a
+  **sprite descriptor table**: see `weapon-config-table.md`. The `type_pick`
   function is `0x54864` here (`0x51948` in the GOG build).
 - The two fire-gate numbers (30% per-tick roll, bearing window 0x0c..0x2b)
   are observed as written; the 30% roll is a **rate-of-fire gate** on the

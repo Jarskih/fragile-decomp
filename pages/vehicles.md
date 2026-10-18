@@ -4,129 +4,178 @@ title: Vehicles
 
 # Vehicles
 
-*Status: written from the game's own text resources and from the binary.
-The confirmed figures are the game's own words; everything else is marked
-(?). The per-craft cost, build time, hull and speed tables have not been
-read out of the game yet.*
+*Status: the craft table (price, build time, armour, speed, hardpoints, ore) and
+the hardpoint item prices are read from the game's data (**[code]**). Craft
+descriptions, the fleet rules and the roles of the defensive items are the game's
+own words (**[text]**). A few record fields are inferred (**?**), and the default
+hardpoint loadouts and the attack/defence ratings the Ship Yards screen shows
+exist only at run time.*
 
 ## What a vehicle is
 
-All of the game's craft — the small fighters, the larger warships, the
-colony ships, even the Spy Satellite and the Space Dock — are built by the
-player and are paid for from the **Vehicles fund** plus supplies of the
-relevant ores. They are constructed in two different buildings:
+All of the game's craft — the small fighters, the larger warships, the colony
+ships, even the Spy Satellite and the Space Dock — are bought with the
+**Vehicles** fund plus ore (see [Colony economy](colony-economy.md)). Two
+buildings build them:
 
-- the **Ship Yards** build the small craft: the **Assault Fighter**, the
-  **Combat Eagle** and the **Scoutship**;
-- the **Orbital Space Dock** builds the larger craft — the **Transporter**,
-  the **Destructor**, and whatever larger designs you own blueprints for.
-  It is itself constructed through the Command Center, is paid for from the
-  Vehicles fund like a craft, and only one Space Dock may exist per
-  asteroid.
+- the **Ship Yards** build the small craft: **Assault Fighter**, **Combat Eagle**
+  and **Scoutship**;
+- the **Orbital Space Dock** builds the larger craft — **Transporter**,
+  **Destructor**, and the Sci-Tek blueprint ships. It is itself ordered through
+  the Command Center, paid from the Vehicles fund like a craft, and only one may
+  exist per asteroid.
 
-The blueprints for the Transporter and the Destructor are provided by
-TetraCorp; all other craft blueprints must be purchased from Sci-Tek.
-Completed ships appear beside the Dock and orbit the colony until given
-orders or assigned to a fleet.
+A Weapons Factory and Ship Yards are required, plus the ores and money. The
+blueprints for the Transporter and Destructor come from TetraCorp; the Terminator
+(90,000), Fleet Battleship (150,000) and Command Cruiser (250,000) must be bought
+from Sci-Tek. The Assault Fighter, Combat Eagle and Scoutship need no blueprint.
+Finished craft appear beside the Dock and orbit until given orders.
 
-Building a ship takes time (measured in days), and an order can stall if the
-required ores run out, the Vehicles fund runs dry, or the colony has
-insufficient labor. An order can be cancelled, but only before construction
-of that craft has begun. Ordinarily a Ship Yard or Space Dock builds up to
-**three** craft at a time; the Construction Droids blueprint raises this to
-**six** and speeds construction up by roughly 25%.
+Building takes the craft's **build days**, and an order can stall if the ore, the
+Vehicles fund or the labour (Ship Yards need 8 staff) runs out. An order can be
+cancelled only before construction has begun. A Ship Yard or Dock builds **3**
+craft at a time; **Construction Droids** (80,000 Cr) raise it to **6** and cut the
+build time by 25% (displayed time = days - floor(days/4)).
 
-## The craft
+## The Terran craft
 
-The player's own craft, in the game's own names:
+**[code]** Build time in days; speed in FN (the game's unit; what the letters mean
+is not stated); range in map units; "ore" is the amount shown in the panel (the
+ores match the game's ore-use text; whether the amounts are consumed per craft or
+only gate the build is **(?)**).
 
-- **Assault Fighter** — small craft, built in the Ship Yards.
-- **Combat Eagle** — small craft, built in the Ship Yards.
-- **Scoutship** — small craft, built in the Ship Yards. The Scoutship is the
-  craft that searches for new asteroids and performs a geosurvey
-  ("prospect") on a found asteroid. Its range is shown as a red circle when
-  ordering it; if it is sent just beyond its range it can still limp home on
-  its Impulse Limp engines. A Scoutship normally cannot communicate with
-  home until it returns — the Long Range Transmitter blueprint gives small
-  craft real-time contact with base.
-- **Transporter** — large craft, built in the Space Dock. The Transporter
-  colonises new asteroids ("Start Colony"), carries ore in its hold, and
-  needs a Refueling Depot on the new colony to return home or start another
-  colony.
-- **Destructor** — large craft, built in the Space Dock.
-- **Terminator** — a warship with **four hardpoints**, "greater armor than
-  existing ships", and a top speed of **2 FN**; it carries a short-range
-  rotary cannon and is noted for its dog-fighting performance. (T-15 model,
-  in service with the Federal Marines.)
-- **Fleet Battleship** — "the most powerful warship available at this
-  time", 92 m long, with **six weapon hardpoints** and a top speed of
-  **2 FN**; designed in 2364 by R. Giggs, it is the primary warship of both
-  Sci-Tek and TetraCorp.
-- **Command Cruiser** — "strongly armed and armored" with **six hardpoints**;
-  its hold carries up to **twenty smaller fighters**, and it can tow a
-  number of medium craft. Its long range extends the reach of a fleet.
-- **Space Dock** — the Orbital Space Dock itself.
-- **Spy Satellite** — orbits an asteroid and continually transmits video of
-  its surface back to you, which is how you can observe the damage a missile
-  strike causes.
+| craft | price (Cr) | build days | armour | speed | hardpoints | range | ore |
+|---|--:|--:|--:|--:|--:|--:|---|
+| Assault Fighter | 6,000 | 20 | 20 | 4 | 1 | 160 | 2 Selenium, 2 Crystalite |
+| Combat Eagle | 12,000 | 30 | 20 | 4 | 2 | 160 | 4 Selenium, 4 Crystalite |
+| Scoutship | 3,000 | 20 | 5 | 3 | 1 | 192 | 4 Selenium, 2 Crystalite |
+| Destructor | 15,000 | 48 | 40 | 2 | 3 | 160 | 8 Selenium, 6 Crystalite |
+| Terminator | 34,000 | 60 | 50 | 2 | 4 | 160 | 8 Selenium, 2 Dragonium |
+| Transporter | 24,000 | 100 | 40 | 2 | 2 | 192 | 6 Selenium, 1 Dragonium |
+| Fleet Battleship | 60,000 | 80 | 70 | 2 | 6 | 160 | 8 Selenium, 6 Dragonium |
+| Space Dock | 150,000 | 110 | 120 | 0 | 4 | 0 | 10 Bytanium, 15 Dragonium |
+| Command Cruiser | 300,000 | 120 | 250 | 2 | 6 | 320 | 10 Barium, 18 Korellium |
+| Spy Satellite | 10,000 | 16 | 1 | 4 | 0 | 320 | 2 Barium |
 
-Blueprint craft whose exact roles are not described by the game (?):
-Lazzaro Research, Delphini Assault, Messier-Lukannon, Transportation,
-Observatory, Rattlesnake, WidowMaker, HeartsBlood, Morning Glory and SkyMech.
+- The cost shown for a design is the hull price plus the prices of the fitted
+  hardpoint items; the armour shown is the base armour plus the bonuses of fitted
+  shields.
+- The text agrees: the Terminator has four hardpoints and a top speed of 2 FN, the
+  Fleet Battleship six and 2 FN, the Command Cruiser six.
 
-The alien cultures field their own vessels, which the game names when it
-mentions them: for example the Mikotaj Hiero, Ylikt-shan, Falari-Lourn,
-Ruth-Strivakh and Na-Xanth, the Rigellian Gerla-Kans Explorer, and others
-such as the All-Purpose Assault, Shielded Multi-Assault, Ultimate Mk II,
-Hardcore, Surveillance Craft Type 5, Combat Craft Type 1.5, Max Combat Craft
-Type 6, Elite Command Craft, Transportation Craft Type 3, Hunter/Prospector,
-Dedicated Fighter, Dedicated Ore Transporter, Geostationary Construction,
-Orbital Construction Area and Orbital Shipyard.
+## What the craft do **[text]**
 
-Speeds are shown in the unit the game prints as **FN**; what the letters
-stand for is not stated anywhere in the game.
+- **Scoutship** — searches for new asteroids and performs a geosurvey
+  ("prospect"). Its range is shown as a red circle when ordering; sent just beyond
+  it, it can limp home on its Impulse Limp engines. It cannot report to home until
+  it returns; the Long Range Transmitter (35,000 Cr) gives new small craft
+  real-time contact.
+- **Transporter** — colonises new asteroids, carries ore, and needs a Refueling
+  Depot on the new colony to return home or start another.
+- **Terminator** — four hardpoints, "greater armor than existing ships", an
+  integral short-range rotary cannon, and a reputation for dog-fighting (T-15
+  model, in Federal Marine service).
+- **Fleet Battleship** — "the most powerful warship available", 92 m long, six
+  hardpoints; the primary warship of Sci-Tek and TetraCorp.
+- **Command Cruiser** — strongly armed and armoured, six hardpoints, carries up to
+  twenty smaller fighters in its hold and can tow medium craft. Its long range
+  extends a fleet's reach.
+- **Spy Satellite** — orbits an asteroid and sends back video of its surface, which
+  is how you see missile damage. Built in the Satellite Silo.
 
-## Hardpoints
+## Alien craft
 
-Every craft type has a number of **hardpoints** — points on the hull to
-which weapons and shields can be attached. The Terminator has four, the
-Fleet Battleship and the Command Cruiser six; the smaller craft's counts are
-not stated in the game text (?). Weapons and shields occupy a hardpoint
-each, can be swapped by clicking the hardpoint again, and are divided into
-offensive and defensive hardpoints.
+31 alien craft use the same table; they cost nothing (the AI builds them). Each
+parallels a Terran class; the race grouping is inferred from the order of the
+names **(?)**.
 
-The ship-to-ship weapons: the **Laser**, the **Photon Cannon**, the
-**Plasma Cannon**, the **Ion Cannon**, the **Disruptor**, the **Napalm Orb**,
-the **Chaos Bomb** and the **Vortex Mine**.
+| craft | race | Terran counterpart | armour | speed (FN) | hardpoints | build days | range |
+|---|---|---|---|---|---|---|---|
+| Lazzaro Research | Rigellian | Scoutship | 16 | 6 | 2 | 24 | 192 |
+| Delphini Assault | Rigellian | Destructor | 35 | 4 | 3 | 40 | 160 |
+| Messier-Lukannon | Rigellian | Terminator | 48 | 4 | 4 | 75 | 160 |
+| Transportation | Rigellian | Transporter | 25 | 4 | 2 | 90 | 160 |
+| Observatory | Rigellian | Space Dock | 130 | 0 | 4 | 90 | 0 |
+| Rattlesnake | Braccatian | Scoutship | 20 | 5 | 2 | 28 | 192 |
+| WidowMaker | Braccatian | Fleet Battleship | 50 | 3 | 4 | 75 | 160 |
+| HeartsBlood | Braccatian | Transporter | 65 | 2 | 6 | 120 | 160 |
+| Morning Glory | Braccatian | Combat Eagle | 15 | 5 | 4 | 50 | 160 |
+| SkyMech | Braccatian | Space Dock | 100 | 0 | 5 | 110 | 0 |
+| Hiero | Mikotaj | Scoutship | 15 | 5 | 2 | 15 | 192 |
+| Ylikt-shan | Mikotaj | Combat Eagle | 30 | 5 | 2 | 30 | 160 |
+| Falari-Lourn | Mikotaj | Fleet Battleship | 70 | 2 | 5 | 80 | 160 |
+| Ruth-Strivakh | Mikotaj | Transporter | 40 | 2 | 2 | 112 | 160 |
+| Na-Xanth | Mikotaj | Space Dock | 140 | 0 | 4 | 80 | 0 |
+| Gerla-Kans Explorer | Artemian | Scoutship | 32 | 5 | 2 | 30 | 192 |
+| All-Purpose Assault | Artemian | Combat Eagle | 36 | 5 | 3 | 33 | 160 |
+| Shielded Multi-Assault | Artemian | Destructor | 50 | 3 | 4 | 60 | 160 |
+| Ultimate Mk II | Artemian | Fleet Battleship | 80 | 2 | 6 | 115 | 160 |
+| Hardcore | Artemian | Transporter | 90 | 2 | 5 | 220 | 160 |
+| Geostationary Construction | Artemian | Space Dock | 130 | 0 | 5 | 86 | 0 |
+| Surveillance Craft Type 5 | Maunid | Scoutship | 5 | 4 | 2 | 24 | 192 |
+| Combat Craft Type 1.5 | Maunid | Combat Eagle | 50 | 3 | 4 | 52 | 160 |
+| Max Combat Craft Type 6 | Maunid | Terminator | 70 | 2 | 6 | 122 | 160 |
+| Elite Command Craft | Maunid | Fleet Battleship | 80 | 2 | 6 | 100 | 160 |
+| Transportation Craft Type 3 | Maunid | Transporter | 35 | 2 | 4 | 122 | 160 |
+| Orbital Construction Area | Maunid | Space Dock | 130 | 0 | 5 | 96 | 0 |
+| Hunter/Prospector | Achaean | Scoutship | 25 | 5 | 2 | 25 | 192 |
+| Dedicated Fighter | Achaean | Terminator | 50 | 3 | 4 | 70 | 160 |
+| Dedicated Ore Transporter | Achaean | Transporter | 40 | 3 | 4 | 90 | 160 |
+| Orbital Shipyard | Achaean | Space Dock | 100 | 0 | 3 | 80 | 0 |
 
-The defensive hardpoints: the **Deflector** (energises the hull to deflect
-most energy attacks, and can be used alongside shields), the **Static
-Inducer** (emits an electromagnetic pulse that scrambles enemy electronics —
-hostile craft are rendered unable to attack or move during the pulse), the
-**Warp Generator** (periodically phases the ship out of space, making it
-temporarily invulnerable), and the **Shield** series: a Shield x40 fills one
-hardpoint and gives the ship 40 more armor points; a Shield x50 gives 50.
-The larger shield "renders a ship almost (but not quite) invulnerable to
-attack" and is offered at 60,000 Cr. The exact per-hardpoint statistics and
-prices of the other items are not yet read from the game (?).
+## Hardpoints and items
+
+Every craft has a number of **hardpoints** to which weapons and shields are
+attached; they can be swapped by clicking again and are split into offensive and
+defensive. The items and their prices **[code]**:
+
+| item | type | price (Cr) | armour bonus | blueprint |
+|---|---|--:|--:|---|
+| Ion Cannon | weapon | 1,000 | - | start |
+| Disruptor | weapon | 6,000 | - | start |
+| Napalm Orb | weapon | 4,000 | - | start |
+| Chaos Bomb | weapon | 12,000 | - | start |
+| Vortex Mine | weapon | 5,000 | - | start |
+| Laser | weapon | 1,000 | - | start |
+| Photon Cannon | weapon | 4,500 | - | start |
+| Plasma Cannon | weapon | 9,000 | - | start |
+| Static Inducer | defence | 4,500 | - | 80,000 |
+| Warp Generator | defence | 9,000 | - | 75,000 |
+| Deflector | defence | 12,000 | - | 115,000 |
+| Shield x10 | defence | 1,500 | 10 | start |
+| Shield x20 | defence | 3,000 | 20 | start |
+| Shield x30 | defence | 5,000 | 30 | start |
+| Shield x40 | defence | 6,500 | 40 | 15,000 |
+| Shield x50 | defence | 8,000 | 50 | 60,000 |
+
+Roles **[text]**: the **Deflector** deflects most energy attacks and works
+alongside shields; the **Static Inducer** emits an electromagnetic pulse that
+leaves hostile craft unable to attack or move during it; the **Warp Generator**
+periodically phases the ship out of space, making it briefly invulnerable; a
+**Shield** fills one hardpoint and adds its armour; the Shield x50 makes a ship
+"almost (but not quite) invulnerable". How the offensive items deal damage is not
+decoded (see [Ship-to-ship combat](ship-combat.md)); the game also keeps three
+rating figures per item that the AI uses to value targets **(?)**.
 
 ## Fleets
 
-Ships at the same colony can be formed into fleets. A fleet moves at the
-speed of its **slowest** ship, and its range is that of its **smallest**
-craft — so a fleet of small fighters cannot range far from home, while
-loading them into a Command Cruiser carries them across the map. A fleet
-has a **retreat threshold**: a percentage you set for how much of the fleet
-may be destroyed before it retreats — set to 100%, the fleet may never
-return; set to 50%, it withdraws after losing half its ships.
+- A fleet holds up to **four ships** (a fifth is rejected) **[code]**.
+- It moves at the speed of its **slowest** ship and has the range of its
+  **smallest** craft, so loading fighters into a Command Cruiser extends it.
+- It has a **retreat threshold**: the share of the fleet that may be destroyed
+  before it withdraws; each day the fleet compares its damage with this threshold.
+  At 100% it never turns back; at 50% it leaves after losing half.
+- Orders: proceed peacefully, attack an asteroid, intercept a hostile fleet (or
+  merge with your own), patrol a sector for a time, cancel the previous order,
+  detach ships, show cargo. Up to five orders stack and can be changed in space.
+  Fleets show on the scanner as coloured triangles.
 
-Fleet orders: proceed peacefully to an asteroid, attack an asteroid, attack
-a hostile fleet (or merge with one of your own fleets), patrol a sector for
-a period, cancel the previous order, detach ships, and — for individual
-ships — show cargo. Orders stack up to five deep and can be changed in
-space. Fleets are named by the player and shown on the scanner as a
-coloured triangle.
+## Open questions
 
-*Related: [Asteroids](asteroids.md) — where ships fly between;
-[Ores and mining](ore-and-mining.md) — what the Transporter carries;
-[Missiles and how they are fired](missiles.md) — how ships attack.*
+- The default hardpoint loadouts and the attack/defence ratings (run-time only).
+- The meaning of the craft record's range and "alternate days" fields.
+- Whether the ore amounts are consumed per craft or only checked.
+
+*Related: [Buildings](buildings.md); [Missiles](missiles.md);
+[Ship-to-ship combat](ship-combat.md); [Ores and mining](ore-and-mining.md);
+[Asteroids](asteroids.md).*

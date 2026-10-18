@@ -67,6 +67,49 @@ and walking forward in 0x1DC steps while the name at +0x4C still starts with
 Names are unique per object and persist across saves — a name set diff between
 two saves identifies which asteroids were destroyed and which appeared.
 
+### Further asteroid-node fields (save diffs)
+
+Established by diffing a chain of saves from one session (day 1504 → 1509 →
+1527 → 1542) plus the other GOG saves:
+
+| offset | size | field | confidence |
+|--------|------|-------|------------|
+| 0x5C | 10 × u16 | ore reserve per ore; falls as the ore is mined | high |
+| 0xA4 | dword | copy of the global tick counter | high |
+| 0xC2 | word | colony **population** (employees); copied into the daily air/food/water demand fields 0x176/0x178/0x17A. Settled colonies sit near 100–150, a new colony grows from its starting staff. Confirmed by code: see `docs/mechanics/life-support.md` | confirmed |
+| 0xC8 | 40 × byte | building count per building type (Terran text order) | confirmed (code) |
+| 0x150 | 10 × u16 | the player's mined-ore stock; rises 1:1 with the fall of 0x5C, on player-owned (type 1) nodes only | high |
+| 0x18E | word | budding countdown, −1 per day on every owned asteroid | high |
+
+The life-support state is also in the node (stored surpluses, radiation,
+unrest, crime); the code-side field list is in
+`docs/mechanics/life-support.md`. A first pass over the saves missed these
+because their values barely move on a settled colony.
+
+## SAVEDATA globals (save diffs)
+
+| file offset | size | field | confidence |
+|-------------|------|-------|------------|
+| 0x0A4 | i32 × 6, stride 0x24 | per-race Money pools (runtime 0xBD58; the four funds and the debt are separate pools): 0xA4 is the human player, 0xC8/0xEC/0x110/0x134 the AI races, 0x158 always 0 | high (0xA4), medium (others) |
+| 0x0A8..0x0C0 | 7 × dword | always 1,000,000 in every save; role unknown | — |
+| 0x280 | dword | the player's Federal Transporter timer (runtime 0xBF34): −1 per day, arrival at 0, departure (ore sale) at −50, then restarts; see `docs/mechanics/economy-and-personnel.md` | confirmed (code) |
+| 0xA04 | u32 | day counter, 0 in a new game | confirmed |
+| 0xA08 | u32 | fraction of the day, 16.16 fixed point = tick_in_day × 0x800 | confirmed |
+| 0xA978 | u32 | global tick counter (last dword of SAVEDATA) | confirmed |
+
+**One game day is 32 ticks**: `[0xA978] = 32 × [0xA04] + [0xA08] / 0x800`
+holds exactly in all 18 saves tested.
+
+New games show 1,000,300 and 1,000,450 credits at day 0, i.e. a 1,000,000
+starting balance plus the first ticks of income. Across a 38-day stretch of
+one game the player's balance rose by a near-constant ≈1,470–1,490 Cr per
+day, independent of how much ore was mined in the interval.
+
+A hired spy agent occupies a small record around 0x594..0x5F0: 0x59C counts
+down the days until it reaches the target, 0x5F0 the days of spying left
+(the UI offers spy time in 5-day steps). Hiring did not change the credit
+balance in these saves.
+
 ## Observed data points
 
 | save | asteroids | X max | Y max | map (cells) |
@@ -88,5 +131,9 @@ scale factor applied to a base map.
 
 - Meaning of the header dwords at 0x0C / 0x10 / 0x34 (0x34 is likely the
   saved RNG state but not yet verified against the RNG algorithm).
-- Internal layout of the SAVEDATA / SIM_HEAP / BUILDING / SHIPS / SHOTS
-  sections (only the master pool has been decoded so far).
+- Internal layout of the SIM_HEAP / BUILDING / SHIPS / SHOTS sections, and
+  the rest of SAVEDATA (the master pool, the time fields and the credit pools
+  are decoded).
+- Cross-checking the life-support fields of `life-support.md` against the
+  saves (a save, build one building, save pair would do it).
+- The role of the 1,000,000 words at 0xA8..0xC0.

@@ -1,129 +1,126 @@
-# Weapon and turret numbers: what is known, and what blocks the rest
+# Weapon and turret numbers: where the tables really are
 
-Status: **behaviour confirmed; the fire delay is now VERIFIED (15 or 40
-game ticks, see below); the item-price catalog is now CONFIRMED static data
-in both builds (see "The item price catalog" below); the remaining numeric
-values (damage, per-type build costs, power use, ranges) are NOT statically
-extractable from the reference flat — this is now a proven negative result,
-not a gap in effort.** See "The
-base-search campaign" below for the exhaustive search that closes the
-question, and "Data files on the ISO" for the equally negative file-side
-survey. **Update (2026-08-07): the GOG retail build ships the same stat
-families as real data** — `make gog-constants` (stage 12) extracts the
-ore/starting-value table, the cost-bearing stat records (ids 0x1e..0x27 +
-0x37, costs 10000..30000) and the type-id list from
-`build/flat/FRAGILE.EXE.gog.flat`; `make dump-constants` (stage 13)
-cross-checks them at their runtime addresses. See
-`docs/dataformats/gog-build-data.md`. The displacement reads listed below
-still point at code in the GOG flat too, so the *exact* mapping of those
-records onto weapon damage / HP / range fields remains open.
+Status: **the "tables in code" problem is SOLVED for the GOG build** (it was a
+base error, see below); the combat/hardpoint tables listed here are read as
+static data from `build/flat/FRAGILE.EXE.gog.flat`. **The 12-record table
+formerly read as weapon-slot fire delays is the colony event table** (see below); the earlier "fire delay VERIFIED at 15 / 40 ticks"
+finding is **overturned** (those constants belong to a message cooldown, see
+"The 15 and 40 constants"). A per-turret damage / range figure **does not
+exist as a table** — see "Turrets and hardpoints". The ISO-side values were not
+re-read in this revision (the ISO flat is not in `build/` now); the ISO tables
+are expected to be byte-identical at ISO flat = displacement + 0x8E004.
 
-Source: reference-build flat `build/flat/FRAGILE.EXE.flat` (Interplay CD),
-its raw disassembly, and the partial Ghidra export
-`build/decomp/FRAGILE.EXE.flat/decompiled.c`. Addresses are image-relative
-(base 0) unless stated.
+Source: `build/flat/FRAGILE.EXE.gog.flat`, `build/flat/gog_disasm.txt`,
+`build/named/FRAGILE.EXE.gog.flat/decompiled.c`; older notes of the reference
+(Interplay CD) build kept where still valid. Addresses are image-relative (base
+0) unless stated. Provenance codes **S** (static table), **C** (constant in
+code), **I** (inferred) as in `stat-tables-design-sheet.md`.
 
 ## The short answer
 
-- Every per-type stat the game uses (hit points, cost, power, range,
-  weapon-mode byte, fire delay, accuracy, launcher offsets) is read by the
-  code through a **DS-relative displacement** (e.g. `0xa6ba`, `0xa4ac`,
-  `0xaade`, `0xb244`, `0x386d4`).
-- At the flat offset equal to that displacement the bytes are **executable
-  instructions** — the "tables in code" anomaly already documented in
-  `asteroid-spawning.md` and `turrets-and-defence.md`.
-- The tables therefore live either at `base + displacement` for some
-  runtime data-segment base `base`, or are **built at runtime into the code
-  region** (the way the proven direction tables at `0x5c800`/`0x5c900` are
-  filled by the loop at `0x21414`).
-- An exhaustive search over every candidate base (page-aligned and
-  16-byte-aligned, in both possible directions `base ± displacement`) with a
-  multi-anchor score function found **no consistent candidate**. So the
-  values exist only in memory at runtime; static extraction from this flat
-  is impossible. A runtime memory trace remains the only route — the
-  snapshot tooling now exists (see resolution paths).
+- Every per-type stat the game reads through a **DS-relative displacement** `D`
+  lives at **GOG flat `D + 0x86004`** (data object at flat 0x86000, plus the
+  4-byte image header). For the reference build the base is `D + 0x8E004`.
+  Verified on the building table (`0x9fd0 → 0x8FFD4`), the craft table
+  (`0xab5c → 0x90B60`), item prices (`0xaa08 → 0x90A0C`), the missile table
+  (`0xb3b0 → 0x913B4`), morale (`0xa3f6 → 0x903FA`), the combat block
+  (`0xb960 → 0x91964`) and the colony event table (`0x9dc4 → 0x8FDC8`).
+- The old "tables in code" anomaly came from reading the displacement as a flat
+  offset (flat `D` is code). The old **base search** (below) could not find the
+  base because it only tried 16-byte-aligned bases: the true bases `0x86004` /
+  `0x8E004` are 4 mod 16.
+- Displacements above the file size (GOG flat size 0x1040A7, i.e. `D >
+  0x7E0A3`) are BSS and really are runtime-filled: the shared direction tables
+  (GOG `0x7eaf0` / `0x7ebf0`, ISO `0x5c800` / `0x5c900`) are the model case.
+- **Code pointers stored in data tables are flat − 4** (functions are 16-aligned
+  in the code object; the image has a 4-byte header). Add 4 for the flat start.
 
 ## What the numbers are and where the code reads them
 
-All reads below are directly verified in the disassembly/export. The
-"index" is the per-type byte (building type or weapon type as appropriate);
-exact type→text-index mapping is only partially confirmed
-(see `turrets-and-defence.md`).
+GOG column: displacement → flat address, with the verified meaning. The ISO
+displacement is the GOG one plus 0x6E8 (building/craft block) or 0x6CC
+(combat block) — read off address pairs, **I**.
 
-| displacement | stride | field | verified read |
-|---|---|---|---|
-| `0xa6b8` | 6 | base HP bytes (creation); static data in both builds, see `building-stat-table.md` | `(&DAT_0000a6b8)[type*6]` |
-| `0xa6ba` | **1 or 6** | build cost, u16 | live construction UI: `mov bx,[ecx+0xa6ba]` (0x8a87, stride 1, compared against the per-race fund); creation/validation path: `[type*6 + 0xa6ba]` (stride 6). Both patterns exist; which is live is unresolved. |
-| `0xaade` | 1 | power/maintenance, signed byte | subtracted from the colony power value |
-| `0xb244` | 0x14 | defence range, u16 | `FUN_0001c2f4`, stored at node `+0x0a` (`>> 2`) |
-| `0xb247` | 0x14 | behaviour byte | re-armed into node `+0x52` |
-| `0xb251` | 0x14 | building category byte | tested `== 7` in destruction |
-| `0x386d4` | 0x14 | footprint width/height bytes | surface painter `FUN_0002fd34` |
-| `0xa4ac` | 0xc | **ship/weapon table**: callback fn `+0`, race-mask u16 `+4`, mode byte `+8` (`-1` = disabled), **fire-delay byte `+9`**, flag u16 `+0xa` | weapon-slot code `FUN_00014384`: `call *0xa4ac(%edi)`; `[type*0xc + 0xa4b4]` mode check; `[type*0xc + 0xa4b5]` reload value; the 0xa4b5 read at 0xa4b5 is +9 from the table start |
-| `0xc458` | 4 | per-race fund (credits), u32 | `[race*4 + 0xc458]`, compared against cost at 0x8a8e (live) |
-| `0xcd8c` | — | player race, byte | `== *(byte*)(node+0xd0)` comparisons in the weapon code |
-| `0x5bf70`..`0x5bf78` | — | build-queue state (live UI globals) | decremented at 0x8ab4, busy flag at `0x5bf78+0x21` |
-| `0x7a5c8`/`0x7a5cc` | — | launch-position globals | written by `0x35874`, read by the fire wrapper |
-| `0x5c800`/`0x5c900` | 4 | shared sin/cos direction tables, 256 dwords | **runtime-filled** by `0x21414` (320-entry window) — the model case for the anomaly |
+| ISO displacement | GOG displacement → flat | stride | field | what it really is |
+|---|---|---|---|---|
+| `0xa6b8` | `0x9fd0 → 0x8FFD4` | 6 | byte | **building table +0: hit points** (Armour) |
+| `0xa6ba` | `0x9fd2 → 0x8FFD6` | 6 | u16 | **building table +2: build cost**. The "stride 1 or 6" conflict is resolved: every access computes `type·3·2 = type·6` (the "stride 1" pattern is `3t` scaled by 2) |
+| `0xa6bc` / `0xa6bd` | `0x9fd4` / `0x9fd5` | 6 | bytes | **building table +4/+5: turret muzzle offsets** (the launch-position helper scales them by 0x270/256) |
+| `0xaade` | `0xa3f6 → 0x903FA` | 1 | s8 | **morale delta** (Terran ids), not a power contribution (the old "power/maintenance" reading is superseded; `stat-tables-design-sheet.md`) |
+| `0xb244` | `0xab5c → 0x90B60` | 0x14 | u16 | **craft table +0: the craft's range** — *not* a turret range |
+| `0xb247` | `0xab5f` | 0x14 | byte | **craft table +3: speed (FN)** — re-armed into the craft node (`+0x52`) |
+| `0xb251` | `0xab69` | 0x14 | byte | **craft table +0xd: class id** (value 7 = Space Dock) — not a "building category" |
+| `0x386d4` / `0x386d5` | `0x36274` / `0x36275` → 0xBC278 | 0x14 | bytes | **building class table +0/+1: footprint width / height in cells** |
+| `0xa4ac` | `0x9dc4 → 0x8FDC8` | 0xc | 12 records | **colony event table** (Corrected 2026-10-18; not a weapon table) — see below |
+| `0xba8a` | `0xb3be → 0x913C2` | 0x10 | u16 | **missile table +0xe: the missile id** (record index for ids 0–12) |
+| `0xc02c … 0xc0a4` | `0xb960 … 0xb9d8 → 0x91964…` | 15 | bytes | **per-launching-race combat block** (damage, radius², Scatter count, Stasis base, strike %, lifetime base): `ship-hit-formula.md` |
+| `0xbfe4` / `0xbff8` | `0xb918` / `0xb92c → 0x9191C…` | 4 | pointers | **per-missile-id handler lists** (static; GOG `0xb914 … 0xb958`) |
+| `0xc100` / `0xc101` | `0xba34` / `0xba35 → 0x91A38` | 2 | s8 pairs | **8 neighbour steps of the walker** |
+| `0xc458` | `0xbd7c` (runtime) | 4 | u32 | per-race fund; a runtime value, not static data |
+| `0x39811` / `0x39812` | `0x373b1`-family (flat 0xBD3B5…) | 0x10 | bytes | **asset (sprite) descriptor table** — not a weapon table |
+| `0x5c800` / `0x5c900` | `0x7eaf0` / `0x7ebf0` | 4 | dwords | shared sin/cos direction tables, **BSS, runtime-filled** (fill loop `0x21414` ISO) |
 
-### Fire delay semantics (from `FUN_00014384`)
+Not table data (runtime globals): `0xcd8c` player race, `0x5bf70…0x5bf78`
+build-queue state, `0x7a5c8` / `0x7a5cc` launch-position globals.
 
-- Each weapon slot node has a countdown `+0x10` and a state `+0x12`.
-- When the slot's countdown expires, the weapon re-arms by reading the
-  **per-type fire-delay byte** `[type*0xc + 0xa4b5]` into `+0x10`.
-- The delay is a **tick count**: `+0x10` is decremented once per pass of the
-  weapon handler, and one tick = one pass of `main` (see `main-loop.md`).
-- After a successful shot the state is reset to `0x28` (**40 ticks**) before
-  the per-type delay is loaded — a fixed rearm floor.
-- The mode byte at `+8` (a.k.a. `0xa4b4`) checked `== -1` disables the
-  weapon type.
+### The colony event table (S@0x8FDC8, 12 records of 12 bytes)
 
-## Live code confirmed this session
+Corrected 2026-10-18: this 12-record table (GOG displacement 0x9dc4, flat 0x8FDC8) is the COLONY EVENT table (the six APV viruses and six Terran colony events), not a ship weapon-slot table: every reader is colony-event code (0x13e32..0x141d3, `colony_sickness_post` 0x13e74, handler call at 0x1459a); the race masks are the APV susceptibilities (`alien-ai-trade-victory.md` 8.6); byte +8 is the cure and byte +9 the stage length in days, not a fire delay. (Earlier revisions of this note read it as a
+ship weapon-slot table with fire delays 20/30/40; that reading is withdrawn.)
 
-The construction-UI handler at `0x8a61`..`0x8ac0` is **live** (verified by
-its behaviour, not assumed): it checks affordability
-(`cost <= fund[race]`), sets/clears the busy flag, and decrements the
-build-queue global. It reads:
+Record: `{code pointer (flat-4), race mask u16 (+4), byte (+6), byte (+7), cure
+s8 (+8, -1 = none), stage length u8 (+9, days), flag u16 (+0xa)}`. Race mask bit
+`n` = race `n` (1 = TetraCorp; 9 Rigellian, 10 Braccatia, 11 Mikotaj, 12
+Artemia, 13 Mauna, 14 Achaean). Records 0-5 are the six APVs (Shell Shock,
+Phantom, Judgement Day, Silicon Death, Bug Hunter, Meat-Eater); records 6-11
+(mask 0x2) are Terran-only colony events. The full decode of the first six
+records (susceptibility, cure, stage length) is in `alien-ai-trade-victory.md`
+8.6; the callbacks sit in gap code `0x13804 ... 0x13d74`. Raw values (cure
+byte / stage-length byte): records 0-5 cure -1 or a cure id with lengths
+30/30/20/30/30/20; records 6-11 lengths 40/40/40/40/30/40. No ship weapon
+fire-delay table has been identified; the weapon re-arm time is unknown.
 
-- cost `u16` at `[type*2 + 0xa6ba]` (stride 1 — the affordability check the
-  player actually sees);
-- per-race fund at `[race*4 + 0xc458]`;
-- globals at `0x5bf70`/`0x5bf74`/`0x5bf78`, `0x7a5c8`/`0x7a5cc`, `0x5c598`.
+## Turrets and hardpoints: what is and is not in a table
 
-It also calls `FUN_0001a4b4` (placement validation, 49 call sites) — so
-that function is reached at runtime.
+- **There is no per-turret damage / range / fire-rate table.** The only static
+  numbers per defence building are the building-table fields (cost, build
+  days, hit points, muzzle bytes) and the class-table fields (footprint, MW
+  used) — `stat-tables-design-sheet.md`, section 1. The turret and
+  Anti-Missile Pod rows are told apart only by the **muzzle bytes** (non-zero
+  = armed structure) and by the building type id in the code paths that test
+  it.
+- The earlier "defence range `0xb244` stride 0x14" is the **craft range**
+  (160 for combat craft, 192 for scouts / transporters, 320 for the Command
+  Cruiser and satellites, 0 for the Space Dock); the function that reads it
+  (`FUN_0001c2f4` in the ISO numbering) is the craft update, not a turret
+  update.
+- The blast sweeps (`ship-hit-formula.md`) are **missile warhead** effects on
+  the attacked asteroid's structures, not turret or hardpoint damage.
+- Hardpoint item values that exist: prices, shield armour bonuses and the
+  three rating tables A/B/C (below and in the design sheet). Their effect on
+  combat is not traced.
 
-Consequence: the earlier single-stride descriptions of the cost table
-("stride 6" in `turrets-and-defence.md`) are incomplete — the live UI uses
-stride 1. The two access patterns conflict; resolving which is the real
-table layout requires the runtime tables (same blocker).
+## The 15 and 40 constants (overturned "fire delay")
 
-## The base-search campaign (the negative result)
+The previous revision reported that "a launcher fires every 15 or 40 game
+ticks" because the countdown bytes `+0x1a8` / `+0x1a9` are re-armed to 15 or
+40 and the next call is "the shot spawner 0x48e64". That reading is wrong:
+`0x48e64` (`event_message_post_b`) is a **message poster**, and the enclosing
+functions are the AI colony economy tick (`ai_economy_tick` 0x98b4) and the
+colony advisor block (see `turrets-and-defence.md`, "The colony gate").
+The 15 / 40 are message-cooldown counters, not weapon fire delays. The 12-record
+table at 0x8FDC8 is NOT a weapon re-arm table (Corrected 2026-10-18); the
+genuine weapon re-arm times are not identified.
 
-Goal: find a base `B0` such that `B0 + displacement` (or `B0 −
-displacement`) lands on real data for *all* tables simultaneously.
+## The base-search campaign (history; premise now known false)
 
-Anchors used per candidate: (a) rng state at `0x4cd7c` must be zero-initial
-(BSS); (b) ten consecutive u16 costs in `[50, 60000]`; (c) six consecutive
-weapon-table rows whose leading dword is a code-region pointer; plus manual
-checks of HP bytes, power bytes, per-race funds, and the player-race byte.
+An exhaustive search for a base `B0` with `B0 + displacement` landing on real
+data (anchors: zero rng state, ten plausible u16 costs, six code-pointer weapon
+rows) found no candidate, at 256-byte and 16-byte alignment, in both directions.
+The method was sound but the grid was wrong: the true base is 4 mod 16
+(`0x8E004` ISO, `0x86004` GOG). Kept so nobody repeats the search.
 
-Searches run, all **negative**:
-
-1. `B0` page-aligned (`0x100` steps), `flat = B0 + displacement`.
-2. `B0` page-aligned, `flat = displacement − B0`.
-3. `B0` 16-byte-aligned (`0x10` steps), `flat = B0 + displacement`, full
-   anchor set. The only two survivors (`0x8d3c0`, `0x8ddc0`) fail every
-   content check on inspection (random costs, non-pointer weapon rows,
-   garbage funds).
-
-So the tables are **not present as data at any aligned base** in the flat.
-Either the runtime DS base is unusual, or — consistent with the proven
-direction-table precedent — the game materialises these tables at startup
-in memory over what the flat shows as code. Either way the values are
-runtime-only.
-
-## Real data tables found in the flat (role unknown)
+## Real data tables found in the ISO flat (role unknown)
 
 Two genuine data structures exist in the flat (they read as data at their
 positions, unlike the stat tables):
@@ -151,121 +148,49 @@ survey of the image (stage 03 inventory + the strings index):
   stats: the strings survey shows only embedded asset filenames
   (`AC01.256`, `TI001.256`, `*.VID`, `*.WAV`, …) and the formats match the
   graphics/sound loaders — no ship/weapon stat tables and no stat text.
-- Re-checking the table regions against the image (`0xa4ac..0xa520` weapon
-  table, `0xc02c..0xc0a4` per-ship stats, `0xba8a`/`0xbfe4` dispatch,
-  `0x9f88`/`0xa16c`/`0xa173`, the `0xf058` ammo pools, the `0xc458` funds,
-  the `0xc3f4` list head): every one of these addresses decodes as
-  instructions in the flat ("tables in code"), and no instruction anywhere
-  in the image stores to any of them (exhaustive grep for absolute stores
-  and `mov reg,$imm` base loads is empty). The known exception — the
-  direction tables `0x5c800`/`0x5c900`, whose fill loop at `0x21414` is
-  visible — shows the pattern the stat tables must follow: materialised in
-  memory at startup from values that exist only in the program's runtime
-  state, with no statically readable source.
+- Re-checking the table regions: reading the displacements as flat offsets
+  (`0xa4ac..0xa520`, `0xc02c..0xc0a4`, `0xba8a` / `0xbfe4`, ...) lands on
+  instructions — that was the base error. At the correct base (ISO flat =
+  displacement + 0x8E004, GOG flat = displacement + 0x86004) the same
+  displacements read as plain data tables (see the table above). The only
+  genuinely runtime-filled tables are the BSS ones, e.g. the direction tables
+  `0x5c800` / `0x5c900` ISO (`0x7eaf0` / `0x7ebf0` GOG), whose fill loop at
+  `0x21414` is visible.
 
-So: **the numbers are not in any data file on the disc, and not in the
-reference-ISO executable image as data.** They are installed into memory at
-startup by the game itself (constants in the init path or derived), and the
-only way to read them in the ISO build remains a runtime memory trace.
-**Update (2026-08-07): the GOG build is the exception** — its flat ships the
-same stat families as real static tables (stage 12 / `gog-build-data.md`),
-so the numbers *are* statically readable from that build.
+So: the numbers are not in any data file on the disc; they are static tables
+inside the executable image, readable once the base is right. (The ISO side was
+confirmed for the building table; the rest is expected to match the GOG tables
+and awaits a re-read of the ISO flat.)
 
-## The 0x20000-family "combat tick" is live (corrected)
+## The combat machine, the 0x357b4 family and the memdump leads
 
-**Update (2026-08-13): the "unreferenced, probably stale" conclusion below
-is overturned.** The per-subtype combat handlers at `0x200e4`/`0x2049c`/
-`0x20564`/`0x2059e`/`0x20809` (the `rng_next(100) < 0xc095[subtype]` strike
-roll)/`0x20b51`/`0x210a7` and the sweep helpers `0x1fd34`/`0x1fde4` have no
-static callers because they are dispatched through **runtime-filled pointer
-tables** (`combat_shot_spawn` 0x1ffc4 loads the shot's handler from `0xbff8`+4;
-the per-type dispatch reads `0xbfe4[0xba8a[type*16]]`) — the live chain runs
-`0x51664` → `0x52b74` → `combat_shot_spawn` → the handler family. The GOG
-retail build has the twin machine (handlers 0x20094..0x20b54, spawner
-`obj_spawn_child` 0x1fbc4) live as well. The hit-resolution semantics of the
-machine are now documented in `docs/mechanics/ship-hit-formula.md`. The
-blocker below (runtime-only per-race stat bytes) still stands for the
-**values**, not the formulas.
+- The 0x200e4-family handlers (ISO) / 0x20094…0x20b54 (GOG) are the **missile
+  impact machine**; their dispatch lists are static data in the GOG flat
+  (`0xb914…`), which is why they have no static callers (they are reached by
+  function pointer). Full analysis and all numeric values:
+  `ship-hit-formula.md`.
+- The `0x357b4`-family (GOG flat 0xBB7B8, stride 0x14) is the **sprite
+  descriptor table** of the type picker (`weapon-config-table.md`), static in
+  the GOG build; the earlier "flat equivalent 0x957B4 is zeros" used the wrong
+  base.
+- `0x39040` (stride 4) is a per-type text-pointer table filled at load.
 
-The earlier text, kept for the record:
+## Resolution paths (updated)
 
-The per-subtype combat handlers at `0x200e4`/`0x2049c`/`0x20564`/`0x2059e`/
-`0x20809` (the `rng_next(100) < 0xc095[subtype]` strike roll)/`0x20b51`/
-`0x210a7` and the sweep helpers `0x1fd34`/`0x1fde4` have **no static
-callers** in the full disassembly (checked line-by-line). Their stat reads
-land on instruction bytes (above), and no chain of pointer tables reaches
-them (the known dispatch table at `0x71dac` points into `0x7c000` code,
-not `0x20000`). **That reasoning was wrong** — see the correction above:
-the dispatch tables themselves (`0xbfe4`, `0xbff8`, `0xba8a`) are the
-runtime-written kind, so "no static callers" says nothing about liveness.
-
-## Resolution paths
-
-1. **Runtime memory trace — tooling in place and executed.** `make memdump`
-   (read-only snapshot) has been run; `make dump-constants` (stage 13)
-   locates the loaded image, derives the per-object relocation bases
-   (obj 3 = 0x24E000, obj 1 = 0x1C9000, obj 2 = 0x14F000 for the GOG
-   build), reads the runtime DS data selectors (0xD88E/0xD98E/0xDB8E), and
-   cross-checks the static tables in memory — byte-identical
-   (`build/reports/dump_constants.md`). The ISO build's own runtime layout
-   would be decoded the same way if the ISO build is run instead.
-   **Caveat (2026-08-11):** none of the captured dumps — including the
-   Ship-Yards dump `ram_1ce2a000.bin` ("colony view") — have the per-type
-   stat tables materialised (stage 14 `make stats` reports "main-menu dump"
-   for every dump that contains the image). The building-placement view
-   specifically is what writes `0xab60`/`0x98a2`/`0xcb4e`; a fresh dump taken
-   while placing a building is required to decode them.
-2. **GOG flat — DONE.** The GOG binary is in the workspace
-   (`Fragile Allegiance/`, gitignored analysis input). `make gog-flat` +
-   `make gog-constants` extract and verify its flat and decode the tables
-   (see `docs/dataformats/gog-build-data.md`). The rename map's GOG-side
-   names can now be cross-checked against these values.
-
-## Fire delay — VERIFIED (GOG build, second dump 2026-08-07)
-
-A second memdump (`build/dumps/ram_1cdfd000.bin`, game in the colony view)
-plus a disassembly pass of the GOG fire code settles the original question:
-
-- The per-node **fire countdown** is the byte at node `+0x1a9`,
-  decremented once per tick (`0x9b99..0x9ba3`), and the weapon fires when
-  it reaches zero.
-- On firing, the countdown is reloaded with a **constant**:
-  - **40 ticks** — the main node-fire tick at 0x115a4 (the same 40-tick
-    rearm floor as the reference build's `slot+0x12 = 0x28`);
-  - **15 ticks** — the second fire path at 0x9bc9/0x9c16.
-- Both paths then call the shot spawner 0x48e64 with
-  `(node, 0x8d, 0x1e, <race global>, 0, <race global>, node+0x4c, 0)` —
-  the 0x37b30/0x37b34 vs 0x37e20/0x37e24 pairs are the two launcher
-  contexts (missile silo vs turret / ship).
-- Per-node fire gating: only nodes whose owner (`+0xc0`) equals the player
-  race (0xc6b0) call the spawner.
-
-So: **a launcher fires every 15 or 40 game ticks** (path-dependent), one
-tick = one pass of `main` (see `docs/mechanics/main-loop.md`).
-
-### Leads chased and eliminated (same session)
-
-The two per-type table families that looked like weapon stats are NOT:
-
-- `0x357b4`-family (stride 0x14; the map's g_weapon_twin_dword/field_a/
-  thresh_a+b names) — at runtime (0x2837B4) this is the game's
-  **asset/file table**: 8 file slots (`type byte @0x2db7b4`, `dword
-  @0x2db7fc`, `dword @0x2db7dc`) and 12-byte rows `{file-name ptr,
-  0x80000000, size}` with pointers into the string pool (`_P\laser.256`,
-  `_P\XB00.256`, … — the weapon-sprite file names; flat equivalent 0x957B4
-  is zeros, so the table is built at startup). The 0x51954..0x51cc0
-  functions that read it are the **asset loader / type selector**, not the
-  weapons. Its per-type byte fields read all-zero in the dumps (no combat
-  state materialises them here).
-- `0x39040` (stride 4) — a per-type **text-pointer table** into the loaded
-  AMERICAN.TXT buffer (runtime 0x6edxxx = the description strings; read at
-  0x9be8 with `0x39040(,%type,4)`).
+1. Memdump route: no longer needed for the tables above. Still needed for
+   the runtime-written values `0xbd7c` (race funds), the structure list
+   contents and anything above the file size (BSS).
+2. GOG flat route: done — see `docs/dataformats/gog-build-data.md` and the
+   design sheet.
+3. Open: the ISO re-read (needs the ISO flat re-extracted), (the twelve
+   records at 0x8FDC8 are colony events, not weapon slots) and the behaviour behind the A/B/C hardpoint
+   ratings.
 
 ## The item price catalog — CONFIRMED static data in both builds
 
 **Update (2026-08-08).** The Ship Yards item-price tables are real static
-data in **both** builds — the earlier "runtime-only" conclusion applies to
-the DS-displacement stat families (0xa6ba etc.), not to this catalog. Found
+data in **both** builds (the DS-displacement stat families are static as
+well once the base is corrected, see the top of this note). Found
 while mapping the weapons/modules prices from a shipyard-screen memdump
 (`build/dumps/ram_1ce2a000.bin`, image at dump offset 0x1c901c; all tables
 byte-identical flat vs runtime).
@@ -301,23 +226,22 @@ byte-identical flat vs runtime).
   table at GOG `0x8F984` / ISO `0x9806C` (`{price u32, 3 packed stat bytes,
   days u32}`) shares values (150000, 300000) with the per-item records and
   may be the same family in a different layout; role still open.
-- The 0x90C20..0x91800 region holds further per-type tables (values like
-  {512, 20}, {256, 30}, 65535/24575 limits, and per-type records with
-  `{flag, type}` headers 0..16) — weapon/turret stats candidates, not yet
-  decoded.
+- The 0x90C20..0x91A00 region (decoded 2026-10-18): the missile table (16-byte
+  records, S@0x913B4: 13 Terran types, then the alien arsenal lists from
+  S@0x91488), the combat block of nine 15-byte per-race arrays (S@0x91964),
+  the missile weight words (S@0x919EC), the handler-pointer lists (S@0x9191C,
+  0x91A10…) and the 8 neighbour steps (S@0x91A38). See `ship-hit-formula.md`
+  and `stat-tables-design-sheet.md` section 4.
 
 Open: which Ship Yards items the 0x90B60 records are (list order from the
 live screen would settle it), and the exact role of the 0xB72E4 pair table.
 
 ## References
 
-- `build/flat/FRAGILE.EXE.flat`, `build/flat/full_disasm.txt` — source
-  data (regenerated 2026-08-07).
-- `build/decomp/FRAGILE.EXE.flat/decompiled.c` — `FUN_00014384`,
-  `FUN_0001a4b4`, `FUN_0001c2f4`, `FUN_0001ddc4`, `FUN_0001e934`.
+- `build/flat/FRAGILE.EXE.gog.flat`, `build/flat/gog_disasm.txt` — source data.
+- `docs/mechanics/ship-hit-formula.md` — missile impact machine with values.
+- `docs/mechanics/weapon-config-table.md` — sprite descriptor table.
 - `docs/mechanics/turrets-and-defence.md`, `docs/mechanics/weapons.md` —
   behaviour and firing pipeline.
-- `docs/mechanics/asteroid-spawning.md` — the "tables in code" anomaly and
-  the runtime fill precedent.
-- `docs/mechanics/main-loop.md` — the tick dispatcher (one tick = one pass
-  of main).
+- `docs/mechanics/stat-tables-design-sheet.md` — consolidated tables.
+- `docs/mechanics/main-loop.md` — the tick dispatcher.

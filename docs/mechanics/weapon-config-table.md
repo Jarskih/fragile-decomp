@@ -1,112 +1,135 @@
-# The per-type weapon configuration table
+# The "weapon config table": a sprite descriptor table, not weapon stats
 
-Status: **confirmed** (both builds). The per-type table that the missile type
-picker reads is **static initialized data** in the GOG build's flat image and
-is filled with the same values at startup in the reference (Interplay CD)
-build. Everything below was cross-checked against the flat images and the two
-DOSBox savestate memory dumps (GOG run: image base 0x209084; reference run:
-image base 0x20e084).
+Status: **confirmed, and the earlier reading is overturned (2026-10-18).** The
+per-type table the missile effect "type picker" reads is **static initialised
+data** in the GOG build's flat image (the reference CD build fills the same
+table at startup), and it is a table of **sprite descriptors for the
+projectile / explosion animations** — name of the sprite file, native size and
+animation parameters. It holds no damage, speed, range or blast figures. The
+six five-byte tuples earlier "interpreted as per-type stats
+(damage/speed/radius?)" are sprite sizes and frame counts. Cross-checked
+against the flat image and the two DOSBox savestate memory dumps (GOG run: image
+base 0x209084; reference run: image base 0x20e084).
 
-Companion to `weapons.md` (the firing pipeline) — this page is about the
-table itself, its location, layout, and the sprite names it maps types to.
+Companion to `weapons.md` (the firing pipeline) and `ship-hit-formula.md` (the
+impact machine, which holds the real per-missile numbers) — this page is about
+the table itself, its location, layout and the sprite names.
 
 ## Where the table lives
 
-| build            | flat image              | runtime                  | nature                       |
-|------------------|-------------------------|--------------------------|------------------------------|
-| GOG              | `0xbb730`               | `0x2c37b4`               | static initialized data      |
-| reference (CD)   | `.bss` zeros at `0xc8b90` | `0x2d2c14`             | written at startup, same values |
+The code addresses it as DS displacement `0x357b4`; **GOG flat = displacement +
+0x86004 = 0xBB7B8** (the earlier statements "flat 0xbb730" and "the reference
+table is BSS zeros at 0xc8b90" used a wrong base; the 0xbb730 figure was 0x88
+bytes too low and the ISO flat equivalent has not been re-read).
 
-Address conventions observed at runtime (GOG): the code section maps at
-`flat + 0x209084`, the config/string section at `flat + 0x208084` (one page
-below the code base), a further data/BSS region at `flat + 0x28e000`. The
-reference build: code at `flat + 0x20e084`, strings at `flat + 0x20d084`. The
-weapon table belongs to the config/string section.
+| build | flat image | runtime | nature |
+|---|---|---|---|
+| GOG | `0xBB7B8` | `0x2c37b4` | static initialised data |
+| reference (CD) | not re-read (expected at displacement + 0x8E004 or BSS filled at startup) | `0x2d2c14` | same values at startup |
 
-The table's internal pointer values use the original-image convention:
-runtime pointer = stored value + 0x28e000 (GOG) — the stored values are not
-usable as flat-file offsets directly.
+The table sits at the end of a larger **file / asset table** that starts at
+flat `0xBB000`: 162 twelve-byte rows `{name pointer, flag dword, size dword}`
+(first the `*_MA\*.vid` video clips, then the `agm00..15` and `trm00..21` photo
+sprites with the `$nem` flag, then `bigpage`, `is0c`, `laser`, `shots` with
+flag `0x80000000`), then the 20-byte descriptor rows below. Name pointers are DS displacements (+0x86004 for flat); the strings
+live at flat `0x8a15c+` (GOG).
 
-## Record layout
+## Record layout (20 bytes, displacement base 0x357b4)
 
-One 20-byte record per type, stride 0x14 (the picker multiplies the type
-index by 0x14; the GOG map symbol for the table is `g_weapon_twin_dword_table`).
+Fields as the picker (GOG `0x51954`) and the projectile spawner (GOG `0x519f4`)
+use them; offsets from the table base, so the name pointer of a row sits at
+`+4`:
 
 | off | size | field |
 |-----|------|-------|
-| +0x00 | 8 | tag dword `0x6d6e6524` ("$nem") + 4 zero bytes — a 4-char code; same family as the "$ffm"/"$ohp" codes in the adjacent data stream |
-| +0x08 | 4 | pointer to the type's sprite file name (below) |
-| +0x0c | 8 | same tag dword + zeros |
-| +0x0e | 1 | first byte of the pair the type picker tests (see below) |
-| +0x0f | 1 | second byte of the pair |
+| +0x00 | 4 | zero (trailing dword of the previous row) |
+| +0x04 | 4 | pointer to the sprite file name (e.g. `_P\XS00.256`) |
+| +0x08 | 4 | flag `0x80000000` |
+| +0x0c | 1 | animation parameter A (24, 26, 21, 16, 20, 19; 31 for the 8×8 sprites) — copied into the projectile slot |
+| +0x0d | 1 | animation parameter B (50 or 63) — copied into the projectile slot |
+| +0x0e | 1 | **native width** in pixels |
+| +0x0f | 1 | **native height** in pixels |
+| +0x10 | 4 | frame count (11, 13, 13, 10, 11, 10, 4 …) — **I** |
 
-Records 5+ in the GOG flat replace the tag with the flag dword 0x80000000,
-and after the first six records the layout continues with byte tuples that
-look like per-type numbers (flat `0xbb7c4` onwards):
+All fourteen rows (S@0xBB7BC… the row of the first sprite name; values are the
+bytes A, B, width, height and the +0x10 dword):
 
-```
-24 50 88 40 11    26 50 40 40 13    21 50 24 24 13
-16 63 32 60 10    20 63 32 90 11    19 63 80 80 10
-```
+| row | sprite file | A | B | width | height | +0x10 |
+|---|---|---|---|---|---|---|
+| 0 | `_P\XS00.256` | 24 | 50 | 88 | 40 | 11 |
+| 1 | `_P\XS01.256` | 26 | 50 | 40 | 40 | 13 |
+| 2 | `_P\XS02.256` | 21 | 50 | 24 | 24 | 13 |
+| 3 | `_P\XB00.256` | 16 | 63 | 32 | 60 | 10 |
+| 4 | `_P\XB01.256` | 20 | 63 | 32 | 90 | 11 |
+| 5 | `_P\XB02.256` | 19 | 63 | 80 | 80 | 10 |
+| 6 | `_P\XMVI.256` | 31 | 63 | 8 | 8 | 4 |
+| 7 | `_P\XMAV.256` | 31 | 63 | 8 | 8 | 4 |
+| 8 | `_P\XMST.256` | 31 | 63 | 8 | 8 | 4 |
+| 9 | `_P\XMVI.256` (second entry) | 31 | 63 | 8 | 8 | 4 |
+| 10 | `_P\XMVA.256` | 31 | 63 | 8 | 8 | 4 |
+| 11 | `_P\XMVB.256` | 31 | 63 | 8 | 8 | 4 |
+| 12 | `_P\FLAMES.256` | 0 | 0 | 0 | 0 | (loader fields) |
 
-six entries — matching the six late-game missile types (Virus, Anti-Virus,
-Mega, Stasis, Bug Hunter, Meat-Eater). Interpreted as per-type stats
-(damage/speed/radius?) but **not yet decoded**.
+(The XMV* / XMAV / XMST names are the Virus / Anti-Virus / Stasis style
+8×8 marker sprites; `FLAMES` is the Napalm / burn animation. The row-9 duplicate
+of `XMVI` is as stored.) **Reading the counts and parameter bytes A, B as
+animation settings is inferred (I); the sizes were checked against the scale
+computation below.**
 
-## The type picker (`type_pick`)
+## The type picker and the spawner
 
-- GOG: `0x51948`; reference: `0x54864`.
-- Takes a (min, max) range; rolls `rng(3)` for a type; the record bytes at
-  +0x0e/+0x0f are the type's own (min, max) pair; it retries while
-  `min < byte[+0x0e]` or `byte[+0x0f] >= max`; on success it copies the
-  0x14-byte record out.
-- The reference picker reads the same offsets (runtime `0x2d2c22`/`0x2d2c23`
-  = table + 0x0e/+0x0f).
-- Callers of the picker are not yet recovered (no direct `call` sites found —
-  the spawn path likely reaches it through the handler table; see Open
-  questions).
+- **Picker** (GOG `0x51954`; the old note's `0x51948` is the function's
+  alignment pad): called with a requested rectangle (width, height) and a seed.
+  It draws a variant with the stateless positional mixer `rng_mix(3, x, y)`
+  (`rng.md`; deterministic for a given position, up to three tries) among the
+  first three rows (the `XS00/XS01/XS02` set) and accepts the first whose native width and height
+  are **at least** the requested size (`byte[+0x0e] ≥ width` and `byte[+0x0f] ≥
+  height`); if all three tries fail it falls back to row 0. This replaces the
+  old "(min, max) range / retry while min < ..." description.
+- **Spawner** (GOG `0x519f4`): takes a structure or blast object, requests the
+  sprite for its footprint, then scales the sprite to fit: horizontal scale
+  `(requested width << 8) / native width`, vertical `(requested height << 8) /
+  native height`, takes the smaller and sets it to 0 if it exceeds 255 (so a
+  fixed 256 = 1.0 scale). Position is the object's centre; the projectile slot
+  table (GOG `0x8bc84`, 12-byte slots: object pointer, spawn tick, state,
+  lifetime, angle, angle base) receives the A / B bytes.
+- This is purely visual: the explosion sprite is picked and scaled to cover the
+  blast rectangle. **The blast radius and damage are not read from this table.**
 
 ## The sprite names
 
-The +8 pointer of each record points 6 bytes into a string of the form
-`EK*_PHOTO\trmXX.256` (i.e. at `OTO\trmXX.256`) — the per-type turret
-sprites, **14 entries**: `trm08.256` … `trm21.256`. The GOG build's game text
-names 13 missile types (Explosive … Meat-Eater); the 14th entry is
-unaccounted for (possibly the unarmed/default type).
-
-The adjacent string pool in the same section holds the projectile sprites and
-other resource names:
+The adjacent string pool holds the projectile sprites and other resource names:
 
 ```
-*_PHOTO\trm08.256 … *_PHOTO\trm21.256   per-type turret sprites
-_P\laser.256, _P\shots.256              laser / generic shots
-_P\XS00.256, _P\XS01.256, _P\XS02.256   Scatter shots
-_P\XB00.256, _P\XB01.256, _P\XB02.256
-_P\XMVI.256   (Virus)        _P\XMAV.256 (Anti-Virus)
-_P\XMST.256   (Stasis)       _P\XMVA.256
-_P\XMVB.256                   _P\FLAMES.256 (Napalm)
-_P\VORTEX.256 (Vortex)
-_MS\bigpage.256, _S\is0c.256, FX\LASER1.WAV, menu-video strings, "%s"/"%8d" formats
+*_PHOTO\agm00..agm15.256               16 more photo sprites (agm = ?)
+*_PHOTO\trm00..trm21.256               22 photo sprites (trm00..trm21)
+_MS\bigpage.256, *_S\is0c.256          misc
+_P\laser.256, _P\shots.256             laser / generic shots
+_P\XS00..XS02, XB00..XB02              Scatter-style blasts (descriptor rows above)
+_P\XMVI, XMAV, XMST, XMVA, XMVB        small marker sprites
+_P\FLAMES.256 (Napalm)   _P\VORTEX.256 (Vortex)
+FX\LASER1.WAV, menu-video strings, "%s"/"%8d" formats
 ```
 
-The XMV*/FLAMES/VORTEX names map 1:1 onto the missile types from the game
-text (`_TEXT/AMERICAN.TXT`), which confirms this pool is the weapon-visual
-registry. GOG strings live at flat `0x8a15c+`; reference strings at flat
-`0x9232c+`; the "EK" prefixes and the exact pointer offset (+6) are not yet
-explained.
+The earlier note counted 14 "turret" sprites `trm08` … `trm21` and was puzzled
+by a 14th entry beside the 13 missile types; the file table in fact holds 22
+`trm` rows (`trm00` … `trm21`) after 16 `agm` rows, so that count — and the
+link between these photo rows and the missile types — was an artefact. What the
+`trm` / `agm` photo images show is not established here. The `$nem` tag
+(`0x6d6e6524` = the bytes `$nem`) is a flag word on the photo rows, the `$ffm` /
+`$ohp` tags of the neighbouring stream are the same kind of flag. The "EK"
+prefix and the "+6 pointer offset" of the earlier note came from reading
+the pointers against the wrong base: with the correct base each pointer lands
+exactly on the stored name (`*_PHOTO\trm08.256`, `_P\XS00.256`, …).
 
 ## Open questions
 
-- The concrete per-type **stats** (damage, speed, range, blast): the six
-  byte-tuples at `0xbb7c4` and the per-type tables `weapons.md` lists as
-  "tables in code" (e.g. the 0x386d4 family in the reference build) are not
-  decoded. The picker's threshold pair at +0x0e/+0x0f coincides with the
-  trailing ASCII of the tag dword, so its runtime meaning needs an in-game
-  snapshot (the reference build writes the table at startup from a source
-  that is not statically visible).
-- Who calls `type_pick` and with what (min, max) ranges (the twin/Scatter
-  spawn path).
-- The meaning of the "$ffm"/"$nem"/"$ohp" tag codes and the entry stream that
-  precedes the table in the GOG flat (`0xbb000`–`0xbb730`, 7-byte entries of
-  `[value][nul][$tag][nul]`), and why the reference build keeps the table in
-  BSS while the GOG build ships it as initialized data.
+- The ISO flat re-read (does it hold identical rows, or the BSS-filled copy?).
+- The exact meaning of parameters A / B (they feed the projectile slot's
+  lifetime / angle fields) and of the +0x10 dword.
+- Which game object calls the picker with which rectangle (the callers are
+  reached through the handler lists of `ship-hit-formula.md`, not by direct
+  call sites).
+- The `$ffm` / `$nem` / `$ohp` flag codes of the 12-byte file rows at flat
+  `0xbb000`–`0xbb7b8` (not a "7-byte entry stream" as the earlier note said)
+  and what the loader does with them.

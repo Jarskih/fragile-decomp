@@ -4,15 +4,29 @@ Status: extraction confirmed; the gameplay stat tables exist as **real
 static data** in the GOG build's flat image. Table *roles* beyond the
 ore/start-values table and the cost records are still being pinned down.
 
+Corrected 2026-10-18 (read this first): (1) the "tables in code" anomaly is a
+**base error**, not a data problem: every DS displacement `D` of a static table
+is at **GOG flat `D + 0x86004`** (data object at flat 0x86000 plus the 4-byte
+image header); reading `D` itself as a flat offset hits code. Verified on the
+building table (0x9fd0 -> 0x8FFD4), craft table (0xab5c -> 0x90B60), item
+prices (0xaa08 -> 0x90A0C), missile table (0xb3b0 -> 0x913B4), morale
+(0xa3f6 -> 0x903FA), ore table (0x9cec -> 0x9FCF0), the Sci-Tek grid and the
+supervisor table (0x967c -> 0x8F680). The "Still open" paragraph at the end of
+this note is therefore obsolete, and the memdump offset for a flat address
+>= 0x86000 is `flat + 0x1C801C`. (2) The records at 0x8F680 are the **Colony
+Supervisor table** (not an unidentified stat table) and the id list at 0x8F880
+is the **starting build menu** (see the corrected sections below).
+
 ## Why a second build
 
 The reference-ISO build of FRAGILE.EXE reads its gameplay stat tables
-(ore starting values, building/ship costs, weapon delays, hit points,
-footprints …) through DS-relative displacements that land on **code** in its
-flat image — the "tables in code" anomaly
-(`docs/mechanics/asteroid-creation.md`, `docs/mechanics/weapon-and-turret-numbers.md`).
-An exhaustive base-search over the ISO flat found no candidate data base, so
-the numbers were not statically extractable from that build.
+(ore starting values, building/ship costs, hit points, footprints …) through
+DS-relative displacements. Read as flat offsets they land on **code** — the
+former "tables in code" anomaly (`docs/mechanics/asteroid-creation.md`,
+`docs/mechanics/weapon-and-turret-numbers.md`). Corrected 2026-10-18: the
+anomaly was the missing +0x86004 (GOG) / +0x8E004 (ISO) data-object base, not
+absent data; the base-search that found no candidate used 16-byte-aligned
+bases only and so missed it.
 
 The GOG retail install (gitignored analysis input, `Fragile Allegiance/`)
 ships a **different build** of FRAGILE.EXE (1,612,039 B vs 1,525,267 B;
@@ -83,7 +97,15 @@ matches the ISO build's `asteroid_gen_start_values` reader exactly
 `[lo, hi]`, otherwise a poor value derives from `hi`. The v1/v2/v3/tag
 columns are not yet mapped to code (open question).
 
-### Stat records @ 0x8F680
+### Stat records @ 0x8F680 — the Colony Supervisor table
+
+Corrected 2026-10-18: these 16 rows are the Colony Supervisor table
+(displacement 0x967C): `cost` is the monthly salary, `cnt`/`f` the warn-after
+and unused bytes, `a..e` the workload thresholds, and the trailing `id` the
+portrait / CV id of the next row's supervisor, not a building type id. The
+full decode is in `docs/mechanics/economy-and-personnel.md` section 4.1. The
+raw dump follows as originally recorded (columns `id`/`cost`/`f`/`cnt`/`a..e`
+are the old labels).
 
 A headless first record `{cost u16, f u8, cnt u8, a..e u32}` (24 B) followed
 by 15 records of `{id u32, cost u16, f u8, cnt u8, a..e u32}` (28 B, stride
@@ -108,30 +130,37 @@ by 15 records of `{id u32, cost u16, f u8, cnt u8, a..e u32}` (28 B, stride
 | 0x23 (35) | 10000 | 4 | 5 | 2000 | 200000 | 8000 | 400000 | … |
 
 Full table incl. the `e` column: `build/reports/gog_constants.md`. The ids
-overlap the type-id list @ 0x8F880 (28 ids with holes: 0,1,2,4,5,6,7,8,9,0xD,
-0xE,0x10,0x13,0x18,0x19,0x1A,0x1B,0x1D,0x1E,0x20..0x27). The first record's
+resemble the id list @ 0x8F880 (28 ids with holes: 0,1,2,4,5,6,7,8,9,0xD,
+0xE,0x10,0x13,0x18,0x19,0x1A,0x1B,0x1D,0x1E,0x20..0x27) only by coincidence:
+Corrected 2026-10-18, the list at 0x8F880 (displacement 0x987c) is the
+**starting build menu** (the building ids offered at game start), not a
+type-id list for these records. The first record's
 `{cost=25000, f=3, cnt=4}` equals the ISO doc's observed `{25000, 1027}`
 (u16 0x0403) — same table family, now readable. Fields `a..e` are
-unidentified (build time / hit points / power / range candidates).
+the supervisor workload thresholds T2..T5 (see the correction above).
 
 ### Other tables in the region (raw, roles unidentified)
 
-- 0x8F5D0: u32 runs 300/400/500 x4, 999x3, 600/400/200 — income-like.
+- 0x8F5D0: u32 runs 300/400/500 x4, 999x3, 600/400/200 — Corrected 2026-10-18: the alien Non-Aggression-Pact / Joint-Combat-Treaty proposal periods by atmosphere (`docs/mechanics/alien-ai-trade-victory.md` 6.5), not income. The race income table (100/250/400 Cr per day, indexed by atmosphere) is the separate word array at 0x8F3B4 (displacement 0x93B0).
 - 0x8F840: 15 {u16,u16} pairs (100,4), (5000,0), (150,4), … .
 - 0x8F898: signed u16 runs (position-like).
 - 0x8FCA8/0x8FCC8: u16 table; `0x5a 0x50` + twelve 0x64 (100) + 0xFC.
 - 0x8FD80/0x8FE60/0x8FEA4: byte ramps (surface/palette candidates).
-- 0x8FEC4: u16s 205,200,210,185,190,195,150x6.
+- 0x8FEC4: u16s 205,200,210,185,190,195,150x6 — the alien expansion-attempt periods for races 9..14 (`alien-ai-trade-victory.md` section 1) and the 150-day alien agent slot-event periods.
 - 0x8FF40/0x8FF78: 4-byte rows; 0x8FF48: 12 code pointers.
 - 0x90000: {u16,u16} pairs (4400,8212), (4000,6154), … — **resolved: a
-  misaligned u16 re-read (phase +0x4C) of the building stat table at
-  0x8FFB4** (40 rows × 6 B: {HP u8, state u8, cost u16, byte, byte}; see
+  misaligned u16 re-read (phase +0x4C) of the building stat table** (Corrected
+  2026-10-18: it starts at 0x8FFD4 (displacement 0x9fd0) and has 177 rows of
+  6 B, not 40 -- the 40 Terran buildings are only ids 0-39; rows were
+  {HP u8, build days u8, cost u16, muzzle byte, muzzle byte}; see
   `docs/mechanics/building-stat-table.md`), not a separate table.
 - 0x90A0A / 0x90B60 / 0x90C20: **the Ship Yards item catalog** — 16
   weapon/module prices (1000..12000 Cr; verified against the live Ship
   Yards screen), the Shield x10..x50 armour values {10,20,30,40,50}, and
-  per-item records `{u16 ×6, text-offset, days, price u32}` (see
-  `docs/mechanics/weapon-and-turret-numbers.md`, "The item price catalog").
+  the **41-record craft table at 0x90B60** (Corrected 2026-10-18: not "per-item
+  `{u16 x6, text-offset, days, price}` records" with a resolved text offset;
+  the fields are in `docs/mechanics/stat-tables-design-sheet.md` 2.1 and
+  `vehicles.md`; see also `weapon-and-turret-numbers.md`, "The item price catalog").
   The ISO build ships the same tables at 0x990F4 / 0x99164.
 - 0x91800: 4-byte rows of small values.
 - 0x8F2C0/0x8F2D0: two 16-row permutation tables over 0..3.
@@ -169,15 +198,12 @@ inside it and reports:
   memory). The ISO build's "tables in code" anomaly is *not* a linker
   quirk of the tables themselves — the same tables exist in the GOG build
   as plain data.
-- **Still open**: how the ISO build reaches its tables (its code reads the
-  same displacements but its flat holds code there — the runtime-materialise
-  hypothesis for the ISO build is untested, and the ISO build's DS bases
-  would need the same dump treatment). In the GOG build, the documented
-  displacement reads (0xab69, 0xb3b4, …) still resolve to code with
-  DS = image base; those reads likely index runtime-allocated objects
-  (struct field offsets), which would explain why the earlier base-search
-  found nothing. Resolving this needs the emulated GDT/LDT or a code-level
-  pass on the readers (open).
+- **Resolved 2026-10-18** (was "still open"): the ISO and GOG builds both
+  reach their tables through DS displacements; the data object sits at
+  flat `D + 0x86004` (GOG) / `D + 0x8E004` (ISO). There is no runtime
+  materialisation and no need for the GDT/LDT: the displacement reads (0xab69,
+  0xb3b4, ...) hit static craft / missile table fields. The ISO side was
+  verified for the building table only.
 
 ## Reproducibility
 
@@ -195,4 +221,5 @@ inside it and reports:
 - `docs/mechanics/weapon-and-turret-numbers.md` — the ISO-side negative
   result this work supersedes for the GOG build.
 - `docs/mechanics/asteroid-creation.md` — the 0xa3xx "tables in code"
-  anomaly.
+  anomaly (resolved: +0x86004/+0x8E004 base).
+- `docs/mechanics/stat-tables-design-sheet.md` — the consolidated table view.

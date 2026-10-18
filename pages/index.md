@@ -35,18 +35,29 @@ project.
   reproducible.
 - [Ores and mining](ore-and-mining.md) — the ten ores, the three mines, how
   much ore each asteroid holds, and how the two rarest ores are distributed.
-- [Buildings](buildings.md) — the structures a colony is built from: the
-  always-available buildings, the brochure-locked ones, power and defence,
-  mining, life support, and the alien equivalents.
+- [Buildings](buildings.md) — the structures a colony is built from, with cost,
+  hit points, build days, size, power and staffing, and the alien equivalents.
 - [Asteroid spawning — implementation instructions](asteroid-spawning.md) —
   the build brief for the asteroid field: creation, movement, population
   maintenance, and the colony surface.
-- [Vehicles](vehicles.md) — the craft the player builds: the roster, the
-  Ship Yards and Space Dock, hardpoints and weapons, and the fleet rules.
+- [Vehicles](vehicles.md) — the craft the player builds: the stat table, the
+  Ship Yards and Space Dock, hardpoint items and prices, and the fleet rules.
 - [Missiles and how they are fired](missiles.md) — the thirteen missile
-  kinds, where they are stored, and how ships fire them at asteroids.
-- [Ship-to-ship combat](ship-combat.md) — how a ship's weapons fire at other
-  ships: ammunition, fire delays, and what determines a hit.
+  kinds, prices, the strike-chance (arrival) model, warhead blast numbers by
+  launching race, and how ships fire.
+- [Ship-to-ship combat](ship-combat.md) — what is and is not known about
+  hardpoint weapons, shields and armour.
+- [Game time](game-time.md) — ticks, days, the calendar, game speed, what runs
+  when, and the Federal Transporter cycle.
+- [Colony economy](colony-economy.md) — population, power, air, food and water,
+  radiation, workforce, unrest and crime, and the money system.
+- [Personnel](personnel.md) — Colony Supervisors and Agents: salaries, workload
+  and stress, missions and fees.
+- [Aliens and diplomacy](aliens-and-diplomacy.md) — the six races, game
+  settings, campaigns, hostility, pacts and treaties, alien expansion, and the
+  win and lose rules.
+- [Trade](trade.md) — trade delegates, goods and prices, the monthly price
+  model, gifts, black market and anti-personnel viruses.
 
 The technical analysis (addresses, disassembly references, open questions) is
 intentionally **not** published here; it stays in the repository for
